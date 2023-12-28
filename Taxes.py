@@ -55,11 +55,14 @@ def load_trades(rates):
     df['Realized P/L'] = pd.to_numeric(df['Realized P/L'], errors='coerce')
     df['MTM P/L'] = pd.to_numeric(df['MTM P/L'], errors='coerce')
     df['T. Price'] = pd.to_numeric(df['T. Price'], errors='coerce')
+    # Order by Date/Time
+    df = df.sort_values(by=['Date/Time'])
     return df
 
 def get_statistics_czk(trades, sells, year):
     # Filter DataFrame by year
     df = trades[trades['Year'] == year]
+    sells = sells[sells['Year'] == year]
     
     # Calculate total purchases and sales for given year in CZK through multiplying with 'CZK Rate' column
     purchases = (df[df['Proceeds'] < 0]['Proceeds'] * df[df['Proceeds'] < 0]['CZK Rate']).sum()
@@ -72,6 +75,7 @@ def get_statistics_czk(trades, sells, year):
 def get_statistics_per_currency(trades, sells, year):
     # Filter DataFrame by year
     df = trades[trades['Year'] == year]
+    sells = sells[sells['Year'] == year]
     
     purchases = df[df['Proceeds'] < 0].groupby('Currency')['Proceeds'].sum()
     sales = df[df['Proceeds'] > 0].groupby('Currency')['Proceeds'].sum()
@@ -137,7 +141,7 @@ unpaired_sells = sells[sells['Quantity'] != -sells['Covered Quantity']]
 
 # Print unpaired sells
 print('Unpaired sells:')
-print(unpaired_sells[['Date/Time', 'Symbol', 'Quantity', 'Covered Quantity', 'Proceeds', 'Covered Price']])
+print(unpaired_sells)
 
 # Get unique years from trades
 years = trades['Year'].unique()
@@ -145,7 +149,6 @@ years = trades['Year'].unique()
 # Get statistics for last year
 year = years.max()
 purchases, sales, commissions, profit_loss_avg, profit_loss_fifo = get_statistics_czk(trades, sells, year)
-
 
 # Print results so far. Format them as CZK currency with 2 decimal places and thousands separator
 print('Statistics for year ', year)
@@ -155,13 +158,19 @@ print('Total IBKR profit/loss in CZK:', '{:,.2f}'.format(profit_loss_avg))
 print('Total FIFO profit/loss in CZK:', '{:,.2f}'.format(profit_loss_fifo))
 print('Total commissions in CZK:', '{:,.2f}'.format(commissions))
 
+# Print paired sells
+print('Sells this year:')
+# Print all rows
+pd.set_option('display.max_rows', None)
+print(sells[sells['Year'] == year])
+
 # Also calculate in raw currencies
 purchases_raw, sales_raw, commissions_raw, profit_loss_avg_raw, profit_loss_fifo_raw = get_statistics_per_currency(trades, sells, year)
 
 # Print results so far
 print('Total purchases per currency:', purchases_raw)
 print('Total sales per currency:', sales_raw)
-print('Total profit/loss per currency:', profit_loss_raw_avg)
-print('Total FIFO profit/loss per currency:', profit_loss_raw_fifo)
+print('Total profit/loss per currency:', profit_loss_avg_raw)
+print('Total FIFO profit/loss per currency:', profit_loss_fifo_raw)
 print('Total commissions per currency:', commissions_raw)
 
