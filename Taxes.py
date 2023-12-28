@@ -7,7 +7,7 @@ import glob
 # Example line: 2023,USD,20.5
 def load_rates():
     df_rates = pd.read_csv('CurrencyRates.csv')
-    df_rates['Value in CZK'] = pd.to_numeric(df_rates['Value in CZK'], errors='coerce')
+    df_rates['CZK Rate'] = pd.to_numeric(df_rates['CZK Rate'], errors='coerce')
     return df_rates
 
 # Load Trades CSV as DataFrame
@@ -54,16 +54,26 @@ def load_trades(rates):
     df['Basis'] = pd.to_numeric(df['Basis'], errors='coerce')
     return df
 
-def get_statistics(trades, year):
+def get_statistics_czk(trades, year):
     # Filter DataFrame by year
     df = trades[trades['Year'] == year]
     
-    # Calculate total purchases and sales for given year in CZK through multiplying with 'Value in CZK' column
-    purchases = (df[df['Proceeds'] < 0]['Proceeds'] * df[df['Proceeds'] < 0]['Value in CZK']).sum()
-    sales = (df[df['Proceeds'] > 0]['Proceeds'] * df[df['Proceeds'] > 0]['Value in CZK']).sum()
+    # Calculate total purchases and sales for given year in CZK through multiplying with 'CZK Rate' column
+    purchases = (df[df['Proceeds'] < 0]['Proceeds'] * df[df['Proceeds'] < 0]['CZK Rate']).sum()
+    sales = (df[df['Proceeds'] > 0]['Proceeds'] * df[df['Proceeds'] > 0]['CZK Rate']).sum()
     
     # Calculate total commissions filtered for given year
-    commissions = (df['Comm/Fee'] * df['Value in CZK']).sum()
+    commissions = (df['Comm/Fee'] * df['CZK Rate']).sum()
+    return purchases, sales, commissions
+
+def get_statistics_per_currency(trades, year):
+    # Filter DataFrame by year
+    df = trades[trades['Year'] == year]
+    
+    purchases = df[df['Proceeds'] < 0].groupby('Currency')['Proceeds'].sum()
+    sales = df[df['Proceeds'] > 0].groupby('Currency')['Proceeds'].sum()
+    commissions = df.groupby('Currency')['Comm/Fee'].sum()
+
     return purchases, sales, commissions
 
 # Load data
@@ -75,24 +85,20 @@ years = trades['Year'].unique()
 
 # Get statistics for last year
 year = years.max()
-total_purchases, total_sales, total_commissions = get_statistics(trades, year)
+purchases, sales, commissions = get_statistics_czk(trades, year)
 
 # Print results so far. Format them as CZK currency with 2 decimal places and thousands separator
 print('Statistics for year ', year)
-print('Total purchases in CZK:', '{:,.2f}'.format(total_purchases))
-print('Total sales in CZK:', '{:,.2f}'.format(total_sales))
-print('Total commissions in CZK:', '{:,.2f}'.format(total_commissions))
+print('Total purchases in CZK:', '{:,.2f}'.format(purchases))
+print('Total sales in CZK:', '{:,.2f}'.format(sales))
+print('Total commissions in CZK:', '{:,.2f}'.format(commissions))
 
 # Also calculate in raw currencies
-# Calculate total purchases and sales for year 2023 separately for each currency
-currency_total_purchases = df[df['Proceeds'] < 0].groupby('Currency')['Proceeds'].sum()
-currency_total_sales = df[df['Proceeds'] > 0].groupby('Currency')['Proceeds'].sum()
-# Calculate total commissions as well
-currency_total_commissions = df.groupby('Currency')['Comm/Fee'].sum()
+purchases_raw, sales_raw, commissions_raw = get_statistics_per_currency(trades, year)
 
 # Print results so far
-print('Total purchases per currency:', currency_total_purchases)
-print('Total sales per currency:', currency_total_sales)
-print('Total commissions per currency:', currency_total_commissions)
+print('Total purchases per currency:', purchases_raw)
+print('Total sales per currency:', sales_raw)
+print('Total commissions per currency:', commissions_raw)
 
 
