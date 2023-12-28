@@ -1,7 +1,6 @@
-# Load 'Trades.2023.csv' as DataFrame and calculate total purchases and sales for year 2023
-
 import pandas as pd
 import numpy as np
+import glob
 
 # Load currency conversion rates from 'CurrencyRates.csv' as DataFrame
 # Header is: Year,Currency,Value in CZK
@@ -10,7 +9,9 @@ df_rates = pd.read_csv('CurrencyRates.csv')
 df_rates['Value in CZK'] = pd.to_numeric(df_rates['Value in CZK'], errors='coerce')
 
 # Load Trades.2023.csv as DataFrame
-df = pd.read_csv('Trades.2023.csv')
+df = pd.read_csv('../Trades.2023.csv')
+# Merge with all other Trades files in the same folder, skipping the first line (header) of each file
+df = pd.concat([pd.read_csv(f, skiprows=1) for f in glob.glob('../Trades.*.csv')], ignore_index = True)
 
 # First line is the headers: Trades,Header,DataDiscriminator,Asset Category,Currency,Symbol,Date/Time,Quantity,T. Price,C. Price,Proceeds,Comm/Fee,Basis,Realized P/L,MTM P/L,Code
 # Column	Descriptions
