@@ -57,29 +57,29 @@ def load_trades(rates):
     df['T. Price'] = pd.to_numeric(df['T. Price'], errors='coerce')
     return df
 
-def get_statistics_czk(trades, year):
+def get_statistics_czk(trades, sells, year):
     # Filter DataFrame by year
     df = trades[trades['Year'] == year]
     
     # Calculate total purchases and sales for given year in CZK through multiplying with 'CZK Rate' column
     purchases = (df[df['Proceeds'] < 0]['Proceeds'] * df[df['Proceeds'] < 0]['CZK Rate']).sum()
     sales = (df[df['Proceeds'] > 0]['Proceeds'] * df[df['Proceeds'] > 0]['CZK Rate']).sum()
-    profit_loss = (df['Realized P/L'] * df['CZK Rate']).sum()
-    
-    # Calculate total commissions filtered for given year
+    profit_loss_average = (df['Realized P/L'] * df['CZK Rate']).sum()
+    profit_loss_fifo = (sells['FIFO P/L'] * sells['CZK Rate']).sum()
     commissions = (df['Comm/Fee'] * df['CZK Rate']).sum()
-    return purchases, sales, commissions, profit_loss
+    return purchases, sales, commissions, profit_loss_average, profit_loss_fifo
 
-def get_statistics_per_currency(trades, year):
+def get_statistics_per_currency(trades, sells, year):
     # Filter DataFrame by year
     df = trades[trades['Year'] == year]
     
     purchases = df[df['Proceeds'] < 0].groupby('Currency')['Proceeds'].sum()
     sales = df[df['Proceeds'] > 0].groupby('Currency')['Proceeds'].sum()
-    profit_loss = df.groupby('Currency')['Realized P/L'].sum()
+    profit_loss_average = df.groupby('Currency')['Realized P/L'].sum()
+    profit_loss_fifo = sells.groupby('Currency')['FIFO P/L'].sum()
     commissions = df.groupby('Currency')['Comm/Fee'].sum()
 
-    return purchases, sales, commissions, profit_loss
+    return purchases, sales, commissions, profit_loss_average, profit_loss_fifo
 
 def pair_buy_sell(trades):
     # Group all trades by Symbol into a new DataFrame
@@ -94,6 +94,7 @@ def pair_buy_sell(trades):
     for symbol, group in per_symbol:
         group['Covered Price'] = 0
         group['Covered Quantity'] = 0
+        group['FIFO P/L'] = 0
         # Find sell orders
         sells = group[group['Quantity'] < 0]
         # Find buy orders
@@ -117,6 +118,9 @@ def pair_buy_sell(trades):
             # Update the sell order with the covered price and quantity
             sells.loc[index_s, 'Covered Price'] = covered_cost
             sells.loc[index_s, 'Covered Quantity'] = covered_quantity
+            covered_fraction = covered_quantity / -sells.loc[index_s, 'Quantity']
+            sells.loc[index_s, 'FIFO P/L'] = ((sells.loc[index_s, 'Proceeds'] * covered_fraction) - sells.loc[index_s, 'Covered Price'])
+
         buys_all = pd.concat([buys_all, buys])
         sells_all = pd.concat([sells_all, sells])
     return buys_all, sells_all
@@ -127,33 +131,37 @@ rates = load_rates()
 trades = load_trades(rates)
 
 # Pair buy and sell orders
-buys_all, sells_all = pair_buy_sell(trades)
-paired_sells = sells_all[sells_all['Quantity'] == -sells_all['Covered Quantity']]
-unpaired_sells = sells_all[sells_all['Quantity'] != -sells_all['Covered Quantity']]
+buys, sells = pair_buy_sell(trades)
+paired_sells = sells[sells['Quantity'] == -sells['Covered Quantity']]
+unpaired_sells = sells[sells['Quantity'] != -sells['Covered Quantity']]
+
 # Print unpaired sells
 print('Unpaired sells:')
-print(unpaired_sells[['Date/Time', 'Symbol', 'Quantity', 'Covered Quantity', 'T. Price', 'Covered Price']])
+print(unpaired_sells[['Date/Time', 'Symbol', 'Quantity', 'Covered Quantity', 'Proceeds', 'Covered Price']])
 
 # Get unique years from trades
 years = trades['Year'].unique()
 
 # Get statistics for last year
 year = years.max()
-purchases, sales, commissions, profit_loss = get_statistics_czk(trades, year)
+purchases, sales, commissions, profit_loss_avg, profit_loss_fifo = get_statistics_czk(trades, sells, year)
+
 
 # Print results so far. Format them as CZK currency with 2 decimal places and thousands separator
 print('Statistics for year ', year)
 print('Total purchases in CZK:', '{:,.2f}'.format(purchases))
 print('Total sales in CZK:', '{:,.2f}'.format(sales))
-print('Total profit/loss in CZK:', '{:,.2f}'.format(profit_loss))
+print('Total IBKR profit/loss in CZK:', '{:,.2f}'.format(profit_loss_avg))
+print('Total FIFO profit/loss in CZK:', '{:,.2f}'.format(profit_loss_fifo))
 print('Total commissions in CZK:', '{:,.2f}'.format(commissions))
 
 # Also calculate in raw currencies
-purchases_raw, sales_raw, commissions_raw, profit_loss_raw = get_statistics_per_currency(trades, year)
+purchases_raw, sales_raw, commissions_raw, profit_loss_avg_raw, profit_loss_fifo_raw = get_statistics_per_currency(trades, sells, year)
 
 # Print results so far
 print('Total purchases per currency:', purchases_raw)
 print('Total sales per currency:', sales_raw)
-print('Total profit/loss per currency:', profit_loss_raw)
+print('Total profit/loss per currency:', profit_loss_raw_avg)
+print('Total FIFO profit/loss per currency:', profit_loss_raw_fifo)
 print('Total commissions per currency:', commissions_raw)
 
