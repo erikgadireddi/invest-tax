@@ -69,8 +69,9 @@ def get_statistics_czk(trades, sells, year):
     sales = (df[df['Proceeds'] > 0]['Proceeds'] * df[df['Proceeds'] > 0]['CZK Rate']).sum()
     profit_loss_average = (df['Realized P/L'] * df['CZK Rate']).sum()
     profit_loss_fifo = (sells['FIFO P/L'] * sells['CZK Rate']).sum()
+    profit_loss_lifo = (sells['LIFO P/L'] * sells['CZK Rate']).sum()
     commissions = (df['Comm/Fee'] * df['CZK Rate']).sum()
-    return purchases, sales, commissions, profit_loss_average, profit_loss_fifo
+    return purchases, sales, commissions, profit_loss_average, profit_loss_fifo, profit_loss_lifo
 
 def get_statistics_per_currency(trades, sells, year):
     # Filter DataFrame by year
@@ -81,9 +82,10 @@ def get_statistics_per_currency(trades, sells, year):
     sales = df[df['Proceeds'] > 0].groupby('Currency')['Proceeds'].sum()
     profit_loss_average = df.groupby('Currency')['Realized P/L'].sum()
     profit_loss_fifo = sells.groupby('Currency')['FIFO P/L'].sum()
+    profit_loss_lifo = sells.groupby('Currency')['LIFO P/L'].sum()
     commissions = df.groupby('Currency')['Comm/Fee'].sum()
 
-    return purchases, sales, commissions, profit_loss_average, profit_loss_fifo
+    return purchases, sales, commissions, profit_loss_average, profit_loss_fifo, profit_loss_lifo
 
 def pair_buy_sell(trades):
     # Group all trades by Symbol into a new DataFrame
@@ -99,31 +101,36 @@ def pair_buy_sell(trades):
         group['Covered Price'] = 0
         group['Covered Quantity'] = 0
         group['FIFO P/L'] = 0
+        group['LIFO P/L'] = 0
         # Find sell orders
         sells = group[group['Quantity'] < 0]
-        # Find buy orders
-        buys = group[group['Quantity'] > 0]
-        # For each sell order, find enough buy orders to cover it
-        for index_s, sell in sells.iterrows():
-            # Find enough buy orders to cover the sell order
-            buys_to_cover = buys[(buys['Date/Time'] < sell['Date/Time']) & (buys['Quantity'] > 0)]
-            covered_quantity = 0
-            covered_cost = 0
-            # If there are enough buy orders to cover the sell order
-            for index_b, buy in buys_to_cover.iterrows():
-                # Reduce the quantity of the buy order by the quantity of the sell order
-                quantity = min(buy['Quantity'], -sell['Quantity'])
-                # Update the quantity of the buy order in the original DataFrame
-                buys.loc[index_b, 'Quantity'] -= quantity
-                sell['Quantity'] += quantity
-                # Add covered price to the sell order
-                covered_quantity += quantity
-                covered_cost += quantity * buy['T. Price']
-            # Update the sell order with the covered price and quantity
-            sells.loc[index_s, 'Covered Price'] = covered_cost
-            sells.loc[index_s, 'Covered Quantity'] = covered_quantity
-            covered_fraction = covered_quantity / -sells.loc[index_s, 'Quantity']
-            sells.loc[index_s, 'FIFO P/L'] = ((sells.loc[index_s, 'Proceeds'] * covered_fraction) - sells.loc[index_s, 'Covered Price'])
+        for use_fifo in [True, False]:
+            # Find buy orders. We'll use the quantity column to determine which buy orders were used to cover the sell orders
+            buys = group[group['Quantity'] > 0]
+            algo_name = 'FIFO P/L' if use_fifo else 'LIFO P/L'
+            # For each sell order, find enough buy orders to cover it
+            for index_s, sell in sells.iterrows():
+                # Find enough buy orders to cover the sell order
+                buys_to_cover = buys[(buys['Date/Time'] < sell['Date/Time']) & (buys['Quantity'] > 0)]
+                # Sort according to FIFO/LIFO (ascending/descending)
+                buys_to_cover = buys_to_cover.sort_values(by=['Date/Time'], ascending=use_fifo)
+                covered_quantity = 0
+                covered_cost = 0
+                # If there are enough buy orders to cover the sell order
+                for index_b, buy in buys_to_cover.iterrows():
+                    # Reduce the quantity of the buy order by the quantity of the sell order
+                    quantity = min(buy['Quantity'], -sell['Quantity'])
+                    # Update the quantity of the buy order in the original DataFrame
+                    buys.loc[index_b, 'Quantity'] -= quantity
+                    sell['Quantity'] += quantity
+                    # Add covered price to the sell order
+                    covered_quantity += quantity
+                    covered_cost += quantity * buy['T. Price']
+                # Update the sell order with the covered price and quantity
+                sells.loc[index_s, 'Covered Price'] = covered_cost
+                sells.loc[index_s, 'Covered Quantity'] = covered_quantity
+                covered_fraction = covered_quantity / -sells.loc[index_s, 'Quantity']
+                sells.loc[index_s, algo_name] = ((sells.loc[index_s, 'Proceeds'] * covered_fraction) - sells.loc[index_s, 'Covered Price'])
 
         buys_all = pd.concat([buys_all, buys])
         sells_all = pd.concat([sells_all, sells])
@@ -148,7 +155,7 @@ years = trades['Year'].unique()
 
 # Get statistics for last year
 year = years.max()
-purchases, sales, commissions, profit_loss_avg, profit_loss_fifo = get_statistics_czk(trades, sells, year)
+purchases, sales, commissions, profit_loss_avg, profit_loss_fifo, profit_loss_lifo = get_statistics_czk(trades, sells, year)
 
 # Print results so far. Format them as CZK currency with 2 decimal places and thousands separator
 print('Statistics for year ', year)
@@ -156,6 +163,7 @@ print('Total purchases in CZK:', '{:,.2f}'.format(purchases))
 print('Total sales in CZK:', '{:,.2f}'.format(sales))
 print('Total IBKR profit/loss in CZK:', '{:,.2f}'.format(profit_loss_avg))
 print('Total FIFO profit/loss in CZK:', '{:,.2f}'.format(profit_loss_fifo))
+print('Total LIFO profit/loss in CZK:', '{:,.2f}'.format(profit_loss_lifo))
 print('Total commissions in CZK:', '{:,.2f}'.format(commissions))
 
 # Print paired sells
@@ -165,12 +173,13 @@ pd.set_option('display.max_rows', None)
 print(sells[sells['Year'] == year])
 
 # Also calculate in raw currencies
-purchases_raw, sales_raw, commissions_raw, profit_loss_avg_raw, profit_loss_fifo_raw = get_statistics_per_currency(trades, sells, year)
+purchases_raw, sales_raw, commissions_raw, profit_loss_avg_raw, profit_loss_fifo_raw, profit_loss_lifo_raw = get_statistics_per_currency(trades, sells, year)
 
 # Print results so far
 print('Total purchases per currency:', purchases_raw)
 print('Total sales per currency:', sales_raw)
 print('Total profit/loss per currency:', profit_loss_avg_raw)
 print('Total FIFO profit/loss per currency:', profit_loss_fifo_raw)
+print('Total LIFO profit/loss per currency:', profit_loss_lifo_raw)
 print('Total commissions per currency:', commissions_raw)
 
