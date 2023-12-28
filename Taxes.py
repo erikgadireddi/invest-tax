@@ -52,6 +52,9 @@ def load_trades(rates):
     df['Proceeds'] = pd.to_numeric(df['Proceeds'], errors='coerce')
     df['Comm/Fee'] = pd.to_numeric(df['Comm/Fee'], errors='coerce')
     df['Basis'] = pd.to_numeric(df['Basis'], errors='coerce')
+    df['Realized P/L'] = pd.to_numeric(df['Realized P/L'], errors='coerce')
+    df['MTM P/L'] = pd.to_numeric(df['MTM P/L'], errors='coerce')
+    df['T. Price'] = pd.to_numeric(df['T. Price'], errors='coerce')
     return df
 
 def get_statistics_czk(trades, year):
@@ -61,10 +64,11 @@ def get_statistics_czk(trades, year):
     # Calculate total purchases and sales for given year in CZK through multiplying with 'CZK Rate' column
     purchases = (df[df['Proceeds'] < 0]['Proceeds'] * df[df['Proceeds'] < 0]['CZK Rate']).sum()
     sales = (df[df['Proceeds'] > 0]['Proceeds'] * df[df['Proceeds'] > 0]['CZK Rate']).sum()
+    profit_loss = (df['Realized P/L'] * df['CZK Rate']).sum()
     
     # Calculate total commissions filtered for given year
     commissions = (df['Comm/Fee'] * df['CZK Rate']).sum()
-    return purchases, sales, commissions
+    return purchases, sales, commissions, profit_loss
 
 def get_statistics_per_currency(trades, year):
     # Filter DataFrame by year
@@ -72,33 +76,79 @@ def get_statistics_per_currency(trades, year):
     
     purchases = df[df['Proceeds'] < 0].groupby('Currency')['Proceeds'].sum()
     sales = df[df['Proceeds'] > 0].groupby('Currency')['Proceeds'].sum()
+    profit_loss = df.groupby('Currency')['Realized P/L'].sum()
     commissions = df.groupby('Currency')['Comm/Fee'].sum()
 
-    return purchases, sales, commissions
+    return purchases, sales, commissions, profit_loss
+
+def pair_buy_sell(trades):
+    # Group all trades by Symbol into a new DataFrame
+    # For each sell order (negative Proceeds), find enough corresponding buy orders (positive Proceeds) with the same Symbol to cover the sell order
+    # Buy orders must be before the sell orders in time (Date/Time) and must have enough Quantity to cover the sell order
+    # From the buy orders, compute the average price (T. Price) for the amount to cover the sell order and add it to the sell order as 'Covered Price'
+    # If a sell order is not covered by any buy orders, it is ignored
+    
+    per_symbol = trades.groupby('Symbol')
+    buys_all = pd.DataFrame()
+    sells_all = pd.DataFrame()
+    for symbol, group in per_symbol:
+        group['Covered Price'] = 0
+        group['Covered Quantity'] = 0
+        # Find sell orders
+        sells = group[group['Quantity'] < 0]
+        # Find buy orders
+        buys = group[group['Quantity'] > 0]
+        # For each sell order, find enough buy orders to cover it
+        for index_s, sell in sells.iterrows():
+            # Find enough buy orders to cover the sell order
+            buys_to_cover = buys[(buys['Date/Time'] < sell['Date/Time']) & (buys['Quantity'] > 0)]
+            covered_quantity = 0
+            covered_cost = 0
+            # If there are enough buy orders to cover the sell order
+            for index_b, buy in buys_to_cover.iterrows():
+                # Reduce the quantity of the buy order by the quantity of the sell order
+                quantity = min(buy['Quantity'], -sell['Quantity'])
+                # Update the quantity of the buy order in the original DataFrame
+                buys.loc[index_b, 'Quantity'] -= quantity
+                sell['Quantity'] += quantity
+                # Add covered price to the sell order
+                covered_quantity += quantity
+                covered_cost += quantity * buy['T. Price']
+            # Update the sell order with the covered price and quantity
+            sells.loc[index_s, 'Covered Price'] = covered_cost
+            sells.loc[index_s, 'Covered Quantity'] = covered_quantity
+        buys_all = pd.concat([buys_all, buys])
+        sells_all = pd.concat([sells_all, sells])
+    return buys_all, sells_all
+    
 
 # Load data
 rates = load_rates()
 trades = load_trades(rates)
+
+# Duplicate trades DataFrame
+buys_all, sells_all = pair_buy_sell(trades)
 
 # Get unique years from trades
 years = trades['Year'].unique()
 
 # Get statistics for last year
 year = years.max()
-purchases, sales, commissions = get_statistics_czk(trades, year)
+purchases, sales, commissions, profit_loss = get_statistics_czk(trades, year)
 
 # Print results so far. Format them as CZK currency with 2 decimal places and thousands separator
 print('Statistics for year ', year)
 print('Total purchases in CZK:', '{:,.2f}'.format(purchases))
 print('Total sales in CZK:', '{:,.2f}'.format(sales))
+print('Total profit/loss in CZK:', '{:,.2f}'.format(profit_loss))
 print('Total commissions in CZK:', '{:,.2f}'.format(commissions))
 
 # Also calculate in raw currencies
-purchases_raw, sales_raw, commissions_raw = get_statistics_per_currency(trades, year)
+purchases_raw, sales_raw, commissions_raw, profit_loss_raw = get_statistics_per_currency(trades, year)
 
 # Print results so far
 print('Total purchases per currency:', purchases_raw)
 print('Total sales per currency:', sales_raw)
+print('Total profit/loss per currency:', profit_loss_raw)
 print('Total commissions per currency:', commissions_raw)
-
 
