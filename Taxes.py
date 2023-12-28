@@ -126,8 +126,13 @@ def pair_buy_sell(trades):
 rates = load_rates()
 trades = load_trades(rates)
 
-# Duplicate trades DataFrame
+# Pair buy and sell orders
 buys_all, sells_all = pair_buy_sell(trades)
+paired_sells = sells_all[sells_all['Quantity'] == -sells_all['Covered Quantity']]
+unpaired_sells = sells_all[sells_all['Quantity'] != -sells_all['Covered Quantity']]
+# Print unpaired sells
+print('Unpaired sells:')
+print(unpaired_sells[['Date/Time', 'Symbol', 'Quantity', 'Covered Quantity', 'T. Price', 'Covered Price']])
 
 # Get unique years from trades
 years = trades['Year'].unique()
