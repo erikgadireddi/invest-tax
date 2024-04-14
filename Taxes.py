@@ -7,7 +7,7 @@ import argparse
 # Header is: Year,Currency,Value in CZK
 # Example line: 2023,USD,20.5
 def load_rates(directory):
-    df_rates = pd.read_csv(directory + '/CurrencyRates.csv')
+    df_rates = pd.read_csv(directory + '/CurrencyRatesYearly.csv')
     df_rates['CZK Rate'] = pd.to_numeric(df_rates['CZK Rate'], errors='coerce')
     return df_rates
 
@@ -144,6 +144,12 @@ def main():
     # Add the arguments
     parser.add_argument('--trades', type=str, help='Path to Trades CSV files')
     parser.add_argument('--settings', type=str, help='Path to CurrencyRates.csv file')
+    parser.add_argument('--save-paired-sells', type=str, help='Save sells that were fully paired')
+    parser.add_argument('--save-unpaired-sells', type=str, help='Save sells not fully paired')
+    parser.add_argument('--save-sells', type=str, help='Save all processed sells')
+    parser.add_argument('--save-paired-buys', type=str, help='Save buys that were fully paired')
+    parser.add_argument('--save-unpaired-buys', type=str, help='Save buys not fully paired')
+    parser.add_argument('--save-buys', type=str, help='Save all processed buys')
 
     # Parse the arguments
     args = parser.parse_args()
@@ -156,10 +162,22 @@ def main():
     buys, sells = pair_buy_sell(trades)
     paired_sells = sells[sells['Quantity'] == -sells['Covered Quantity']]
     unpaired_sells = sells[sells['Quantity'] != -sells['Covered Quantity']]
+    paired_buys = buys[buys['Quantity'] == 0]
+    unpaired_buys = buys[buys['Quantity'] != 0]
 
-    # Print unpaired sells
-    print('Unpaired sells:')
-    print(unpaired_sells)
+    # Save unpaired sells to CSV
+    if args.save_unpaired_sells:
+        unpaired_sells.to_csv(args.save_unpaired_sells, index=False)
+    if args.save_paired_sells:
+        paired_sells.to_csv(args.save_paired_sells, index=False)
+    if args.save_sells:
+        trades.to_csv(args.save_sells, index=False)
+    if args.save_unpaired_buys:
+        unpaired_buys.to_csv(args.save_unpaired_buys, index=False)
+    if args.save_paired_buys:
+        paired_buys.to_csv(args.save_paired_buys, index=False)
+    if args.save_buys:
+        buys.to_csv(args.save_buys, index=False)
 
     # Get unique years from trades
     years = trades['Year'].unique()
