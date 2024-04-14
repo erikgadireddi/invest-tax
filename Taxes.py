@@ -1,20 +1,21 @@
 import pandas as pd
 import numpy as np
 import glob
+import argparse
 
 # Load currency conversion rates from 'CurrencyRates.csv' as DataFrame
 # Header is: Year,Currency,Value in CZK
 # Example line: 2023,USD,20.5
-def load_rates():
-    df_rates = pd.read_csv('CurrencyRates.csv')
+def load_rates(directory):
+    df_rates = pd.read_csv(directory + '/CurrencyRates.csv')
     df_rates['CZK Rate'] = pd.to_numeric(df_rates['CZK Rate'], errors='coerce')
     return df_rates
 
 # Load Trades CSV as DataFrame
-def load_trades(rates):
+def load_trades(directory, rates):
     # Merge with all Trades.[year].csv files in the same folder, skipping the first line (header) of each file
     df = None
-    for f in glob.glob('../Trades.*.csv'):
+    for f in glob.glob(directory + '/Trades.*.csv'):
         if df is None:
             df = pd.read_csv(f)
         else:
@@ -24,7 +25,6 @@ def load_trades(rates):
     # Column	Descriptions
     # Trades	The trade number.
     # Header	Header record contains the report title and the date and time of the report.
-    # DataDiscriminator	Indicates the type of data record. Possible values are: "Data", "DataTotals", "Header", "HeaderTotals", "Trades", "TradesTotals" and "Footer".
     # Asset Category	The asset category of the instrument. Possible values are: "Stocks", "Options", "Futures", "FuturesOptions
     # Symbol	    The symbol of the instrument you traded.
     # Date/Time	The date and the time of the execution.
@@ -55,6 +55,7 @@ def load_trades(rates):
     df['Realized P/L'] = pd.to_numeric(df['Realized P/L'], errors='coerce')
     df['MTM P/L'] = pd.to_numeric(df['MTM P/L'], errors='coerce')
     df['T. Price'] = pd.to_numeric(df['T. Price'], errors='coerce')
+
     # Order by Date/Time
     df = df.sort_values(by=['Date/Time'])
     return df
@@ -98,10 +99,10 @@ def pair_buy_sell(trades):
     buys_all = pd.DataFrame()
     sells_all = pd.DataFrame()
     for symbol, group in per_symbol:
-        group['Covered Price'] = 0
-        group['Covered Quantity'] = 0
-        group['FIFO P/L'] = 0
-        group['LIFO P/L'] = 0
+        group['Covered Price'] = 0.0
+        group['Covered Quantity'] = 0.0
+        group['FIFO P/L'] = 0.0
+        group['LIFO P/L'] = 0.0
         # Find sell orders
         sells = group[group['Quantity'] < 0]
         for use_fifo in [True, False]:
@@ -135,51 +136,63 @@ def pair_buy_sell(trades):
         buys_all = pd.concat([buys_all, buys])
         sells_all = pd.concat([sells_all, sells])
     return buys_all, sells_all
-    
 
-# Load data
-rates = load_rates()
-trades = load_trades(rates)
+def main():
+    # Process command-line arguments
+    parser = argparse.ArgumentParser(description='Process command-line arguments')
 
-# Pair buy and sell orders
-buys, sells = pair_buy_sell(trades)
-paired_sells = sells[sells['Quantity'] == -sells['Covered Quantity']]
-unpaired_sells = sells[sells['Quantity'] != -sells['Covered Quantity']]
+    # Add the arguments
+    parser.add_argument('--trades', type=str, help='Path to Trades CSV files')
+    parser.add_argument('--settings', type=str, help='Path to CurrencyRates.csv file')
 
-# Print unpaired sells
-print('Unpaired sells:')
-print(unpaired_sells)
+    # Parse the arguments
+    args = parser.parse_args()
 
-# Get unique years from trades
-years = trades['Year'].unique()
+    # Load data
+    rates = load_rates(args.settings)
+    trades = load_trades(args.trades, rates)
 
-# Get statistics for last year
-year = years.max()
-purchases, sales, commissions, profit_loss_avg, profit_loss_fifo, profit_loss_lifo = get_statistics_czk(trades, sells, year)
+    # Pair buy and sell orders
+    buys, sells = pair_buy_sell(trades)
+    paired_sells = sells[sells['Quantity'] == -sells['Covered Quantity']]
+    unpaired_sells = sells[sells['Quantity'] != -sells['Covered Quantity']]
 
-# Print results so far. Format them as CZK currency with 2 decimal places and thousands separator
-print('Statistics for year ', year)
-print('Total purchases in CZK:', '{:,.2f}'.format(purchases))
-print('Total sales in CZK:', '{:,.2f}'.format(sales))
-print('Total IBKR profit/loss in CZK:', '{:,.2f}'.format(profit_loss_avg))
-print('Total FIFO profit/loss in CZK:', '{:,.2f}'.format(profit_loss_fifo))
-print('Total LIFO profit/loss in CZK:', '{:,.2f}'.format(profit_loss_lifo))
-print('Total commissions in CZK:', '{:,.2f}'.format(commissions))
+    # Print unpaired sells
+    print('Unpaired sells:')
+    print(unpaired_sells)
 
-# Print paired sells
-print('Sells this year:')
-# Print all rows
-pd.set_option('display.max_rows', None)
-print(sells[sells['Year'] == year])
+    # Get unique years from trades
+    years = trades['Year'].unique()
 
-# Also calculate in raw currencies
-purchases_raw, sales_raw, commissions_raw, profit_loss_avg_raw, profit_loss_fifo_raw, profit_loss_lifo_raw = get_statistics_per_currency(trades, sells, year)
+    # Get statistics for last year
+    year = years.max()
+    purchases, sales, commissions, profit_loss_avg, profit_loss_fifo, profit_loss_lifo = get_statistics_czk(trades, sells, year)
 
-# Print results so far
-print('Total purchases per currency:', purchases_raw)
-print('Total sales per currency:', sales_raw)
-print('Total profit/loss per currency:', profit_loss_avg_raw)
-print('Total FIFO profit/loss per currency:', profit_loss_fifo_raw)
-print('Total LIFO profit/loss per currency:', profit_loss_lifo_raw)
-print('Total commissions per currency:', commissions_raw)
+    # Print results so far. Format them as CZK currency with 2 decimal places and thousands separator
+    print('Statistics for year ', year)
+    print('Total purchases in CZK:', '{:,.2f}'.format(purchases))
+    print('Total sales in CZK:', '{:,.2f}'.format(sales))
+    print('Total IBKR profit/loss in CZK:', '{:,.2f}'.format(profit_loss_avg))
+    print('Total FIFO profit/loss in CZK:', '{:,.2f}'.format(profit_loss_fifo))
+    print('Total LIFO profit/loss in CZK:', '{:,.2f}'.format(profit_loss_lifo))
+    print('Total commissions in CZK:', '{:,.2f}'.format(commissions))
 
+    # Print paired sells
+    print('Sells this year:')
+    # Print all rows
+    pd.set_option('display.max_rows', None)
+    print(sells[sells['Year'] == year])
+
+    # Also calculate in raw currencies
+    purchases_raw, sales_raw, commissions_raw, profit_loss_avg_raw, profit_loss_fifo_raw, profit_loss_lifo_raw = get_statistics_per_currency(trades, sells, year)
+
+    # Print results so far
+    print('Total purchases per currency:', purchases_raw)
+    print('Total sales per currency:', sales_raw)
+    print('Total profit/loss per currency:', profit_loss_avg_raw)
+    print('Total FIFO profit/loss per currency:', profit_loss_fifo_raw)
+    print('Total LIFO profit/loss per currency:', profit_loss_lifo_raw)
+    print('Total commissions per currency:', commissions_raw)
+
+if __name__ == "__main__":
+    main()
