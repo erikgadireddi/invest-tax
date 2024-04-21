@@ -5,6 +5,7 @@ import argparse
 import re
 import hashlib
 
+# Used to hash entire rows since there is no unique identifier for each row
 def hash_row(row):
     row_str = row.to_string()
     hash_object = hashlib.sha256()
@@ -12,12 +13,24 @@ def hash_row(row):
     hash_hex = hash_object.hexdigest()
     return hash_hex
 
+def adjust_rates_columns(df):
+    # Headers contain the divisor for the rates
+    # Example header: 1 HKD|100 HUF|1000 IDR|1 ILS|100 INR|100 ISK|100 JPY
+    # For headers that are greater than 1, divide the rows by that number
+    for column in df.columns:
+        divisor = int(column.split(' ')[0])
+        df[column] = pd.to_numeric(df[column], errors='coerce')
+        df[column] = df[column] / divisor
+        # Update column name with currency code
+        df.rename(columns={column: column.split(' ')[1]}, inplace=True)
+    return df
+
 def load_yearly_rates(directory):
-    # Header is: Year,Currency,Value in CZK
-    # Example line: 2023,USD,20.5
-    df_rates = pd.read_csv(directory + '/CurrencyRatesYearly.csv')
-    df_rates['CZK Rate'] = pd.to_numeric(df_rates['CZK Rate'], errors='coerce')
-    return df_rates
+    df = pd.read_csv(directory + '/CurrencyRatesYearly.csv')
+    df['Year'] = pd.to_numeric(df['Year'], errors='coerce')
+    df.set_index('Year', inplace=True)
+    df = adjust_rates_columns(df)
+    return df
 
 # Load daily CNB rates
 def load_daily_rates(directory):
@@ -27,13 +40,9 @@ def load_daily_rates(directory):
             df = pd.read_csv(f)
         else:
             df = pd.concat([df, pd.read_csv(f)], ignore_index = True)
-    # Headers contain the divisor for the rates
-    # Example header: 1 HKD|100 HUF|1000 IDR|1 ILS|100 INR|100 ISK|100 JPY
-    # For headers that are greater than 1, divide the rows by that number
     df['Datum'] = pd.to_datetime(df['Datum'], format='%d.%m.%Y')
-    for column in df.columns[1:]:
-        divisor = int(column.split(' ')[0])
-        df[column] = df[column] / divisor
+    df.set_index('Datum', inplace=True)
+    df = adjust_rates_columns(df)
     return df
 
 # Load Trades CSV as DataFrame
@@ -188,7 +197,7 @@ def pair_buy_sell(trades):
                         covered_quantity += quantity
                         covered_cost += quantity * buy['T. Price']
                         # Add the pair to the DataFrame, indexing by hashes of the buy and sell transactions
-                        data = {'Sell Transaction': index_s, 'Buy Transaction': index_b, 'Symbol': symbol,
+                        data = {'Sell Transaction': index_s, 'Buy Transaction': index_b, 'Symbol': symbol, 'Currency': buy['Currency'],
                                 'Quantity': quantity, 'Buy Time': buy['Date/Time'], 'Sell Time': sell['Date/Time'],
                                 'Buy Price': buy['T. Price'], 'Sell Price': sell['T. Price'], 
                                 'Buy Cost': buy['T. Price'] - (buy['Comm/Fee'] / buy['Quantity']), 
@@ -288,7 +297,15 @@ def main():
     if args.update_pairs:
         sell_buy_pairs.round(3).to_csv(args.update_pairs, index=True)
         for year in trades['Year'].unique():
-            sell_buy_pairs[sell_buy_pairs['Sell Time'].dt.year == year].round(3).to_csv("{0}.{1}.csv".format(args.update_pairs, year), index=True)
+            for use_yearly_rates in [True, False]:
+                sell_buy_pairs['Year'] = sell_buy_pairs['Sell Time'].dt.year
+                sell_buy_pairs.apply(lambda row: yearly_rates.loc[2021, row['Currency']], axis=1)
+                
+                # Map index of yearly_rates to year of Sell Time
+                sell_buy_pairs['CZK Rate'] = sell_buy_pairs['Sell Time'].dt.year.map(yearly_rates[sell_buy_pairs['Currency']])
+                                
+                # sell_buy_pairs['CZK Rate'] = sell_buy_pairs['Sell Time'].dt.year.map(yearly_rates['CZK Rate']) if use_yearly_rates else sell_buy_pairs['Sell Time'].dt.date.map(daily_rates.squeeze()['1 USD'])
+                sell_buy_pairs[sell_buy_pairs['Sell Time'].dt.year == year].round(3).to_csv("{0}.{1}.{2}.csv".format(args.update_pairs, year, 'yearly' if use_yearly_rates else 'daily'), index=True)
 
     if args.compute:
         # Get unique years from trades
