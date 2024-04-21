@@ -2,6 +2,7 @@ import pandas as pd
 import numpy as np
 import glob
 import argparse
+import re
 
 # Load currency conversion rates from 'CurrencyRates.csv' as DataFrame
 # Header is: Year,Currency,Value in CZK
@@ -20,6 +21,26 @@ def load_trades(directory, rates):
             df = pd.read_csv(f)
         else:
             df = pd.concat([df, pd.read_csv(f)], ignore_index = True)
+    print(df)
+
+    # Go over all 'Activity' exports that contain all data
+    data = None
+    for f in glob.glob(directory + '/U*_*_*.csv'):
+        # Only if matching U12345678_[optional_]20230101_20231231.csv
+        if(re.match(r'.+U(\d+)_(\d{8})_(\d{8})', f)):
+            # Read the file
+            with open(f, 'r') as file:
+                # Specify the column names
+                column_names = ['Trades', 'Header', 'DataDiscriminator', 'Asset Category', 'Currency', 'Symbol', 'Date/Time', 'Quantity', 'T. Price', 'C. Price', 'Proceeds', 'Comm/Fee', 'Basis', 'Realized P/L', 'MTM P/L', 'Code', 'Extra']
+                if data is None:
+                    data = pd.read_csv(file, names=column_names)
+                else:
+                    data = pd.concat([data, pd.read_csv(file, names=column_names)], ignore_index = True)
+                # Keep only lines with column values "Trades","Data","Order","Stocks"
+                data = data[(data['Trades'] == 'Trades') & (data['Header'] == 'Data') & (data['DataDiscriminator'] == 'Order') & (data['Asset Category'] == 'Stocks')]
+        else:
+            print('Skipping file:', f)
+    print(data)
 
     # First line is the headers: Trades,Header,DataDiscriminator,Asset Category,Currency,Symbol,Date/Time,Quantity,T. Price,C. Price,Proceeds,Comm/Fee,Basis,Realized P/L,MTM P/L,Code
     # Column	Descriptions
