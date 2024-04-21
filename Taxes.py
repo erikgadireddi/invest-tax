@@ -80,6 +80,11 @@ def load_trades(directory, rates):
 
     # Order by Date/Time
     df = df.sort_values(by=['Date/Time'])
+    # Count the rows before removing duplicates
+    count = len(df)
+    df = df.drop_duplicates()
+    if (count != len(df)):
+        print('Duplicates found and removed:', count - len(df))
     return df
 
 def get_statistics_czk(trades, sells, year):
@@ -121,6 +126,7 @@ def pair_buy_sell(trades):
     per_symbol = trades.groupby('Symbol')
     buys_all = pd.DataFrame()
     sells_all = pd.DataFrame()
+    sell_buy_pairs = pd.DataFrame()
     for symbol, group in per_symbol:
         group['Covered Price'] = 0.0
         group['FIFO P/L'] = 0.0
@@ -192,7 +198,7 @@ def main():
 
     # Save unpaired sells to CSV
     if args.save_imported:
-        trades.sort_values(by='Symbol').to_csv(args.save_imported, index=False)
+        trades.drop(['Covered Quantity', 'Uncovered Quantity'], axis=1, inplace=False).sort_values(by='Symbol').to_csv(args.save_imported, index=False)
     if args.save_unpaired_sells:
         unpaired_sells.sort_values(by='Symbol').to_csv(args.save_unpaired_sells, index=False)
     if args.save_paired_sells:
