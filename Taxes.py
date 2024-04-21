@@ -11,13 +11,30 @@ def hash_row(row):
     hash_object.update(row_str.encode())
     hash_hex = hash_object.hexdigest()
     return hash_hex
-# Load currency conversion rates from 'CurrencyRates.csv' as DataFrame
-# Header is: Year,Currency,Value in CZK
-# Example line: 2023,USD,20.5
-def load_rates(directory):
+
+def load_yearly_rates(directory):
+    # Header is: Year,Currency,Value in CZK
+    # Example line: 2023,USD,20.5
     df_rates = pd.read_csv(directory + '/CurrencyRatesYearly.csv')
     df_rates['CZK Rate'] = pd.to_numeric(df_rates['CZK Rate'], errors='coerce')
     return df_rates
+
+# Load daily CNB rates
+def load_daily_rates(directory):
+    df = None
+    for f in glob.glob(directory + '/CurrencyRatesDaily.*.csv'):
+        if df is None:
+            df = pd.read_csv(f)
+        else:
+            df = pd.concat([df, pd.read_csv(f)], ignore_index = True)
+    # Headers contain the divisor for the rates
+    # Example header: 1 HKD|100 HUF|1000 IDR|1 ILS|100 INR|100 ISK|100 JPY
+    # For headers that are greater than 1, divide the rows by that number
+    df['Datum'] = pd.to_datetime(df['Datum'], format='%d.%m.%Y')
+    for column in df.columns[1:]:
+        divisor = int(column.split(' ')[0])
+        df[column] = df[column] / divisor
+    return df
 
 # Load Trades CSV as DataFrame
 def load_trades(directory, rates):
@@ -241,8 +258,9 @@ def main():
     args = parser.parse_args()
 
     # Load data
-    rates = load_rates(args.settings)
-    trades = load_trades(args.trades, rates)
+    daily_rates = load_daily_rates(args.settings)
+    yearly_rates = load_yearly_rates(args.settings)
+    trades = load_trades(args.trades, yearly_rates)
 
     # Pair buy and sell orders
     buys, sells, sell_buy_pairs = pair_buy_sell(trades)
