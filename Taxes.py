@@ -14,7 +14,7 @@ def load_rates(directory):
 
 # Load Trades CSV as DataFrame
 def load_trades(directory, rates):
-    # Merge with all Trades.[year].csv files in the same folder, skipping the first line (header) of each file
+    # Merge with all Trades.[year].csv files in the directory, which are assumed to contain only trades
     df = None
     for f in glob.glob(directory + '/Trades.*.csv'):
         if df is None:
@@ -23,7 +23,7 @@ def load_trades(directory, rates):
             df = pd.concat([df, pd.read_csv(f)], ignore_index = True)
     print(df)
 
-    # Go over all 'Activity' exports that contain all data
+    # Go over all 'Activity' exports that contain all data and extract only the 'Trades' part
     data = None
     for f in glob.glob(directory + '/U*_*_*.csv'):
         # Only if matching U12345678_[optional_]20230101_20231231.csv
@@ -41,6 +41,7 @@ def load_trades(directory, rates):
         else:
             print('Skipping file:', f)
     print(data)
+    df = data
 
     # First line is the headers: Trades,Header,DataDiscriminator,Asset Category,Currency,Symbol,Date/Time,Quantity,T. Price,C. Price,Proceeds,Comm/Fee,Basis,Realized P/L,MTM P/L,Code
     # Column	Descriptions
@@ -69,7 +70,7 @@ def load_trades(directory, rates):
     # Merge df with df_rates on Currency and Year columns, getting Value in CZK column from df_rates
     df = pd.merge(df, rates, on=['Currency', 'Year'])
     # Convert numeric columns to numeric type
-    df['Quantity'] = pd.to_numeric(df['Quantity'], errors='coerce')
+    df['Quantity'] = pd.to_numeric(df['Quantity'].str.replace(',', ''), errors='coerce')
     df['Proceeds'] = pd.to_numeric(df['Proceeds'], errors='coerce')
     df['Comm/Fee'] = pd.to_numeric(df['Comm/Fee'], errors='coerce')
     df['Basis'] = pd.to_numeric(df['Basis'], errors='coerce')
@@ -165,6 +166,7 @@ def main():
     # Add the arguments
     parser.add_argument('--trades', type=str, help='Path to Trades CSV files')
     parser.add_argument('--settings', type=str, help='Path to CurrencyRates.csv file')
+    parser.add_argument('--save-imported', type=str, help='Save all imported data without any processing')
     parser.add_argument('--save-paired-sells', type=str, help='Save sells that were fully paired')
     parser.add_argument('--save-unpaired-sells', type=str, help='Save sells not fully paired')
     parser.add_argument('--save-sells', type=str, help='Save all processed sells')
@@ -187,18 +189,20 @@ def main():
     unpaired_buys = buys[buys['Quantity'] != 0]
 
     # Save unpaired sells to CSV
+    if args.save_imported:
+        trades.sort_values(by='Symbol').to_csv(args.save_imported, index=False)
     if args.save_unpaired_sells:
-        unpaired_sells.to_csv(args.save_unpaired_sells, index=False)
+        unpaired_sells.sort_values(by='Symbol').to_csv(args.save_unpaired_sells, index=False)
     if args.save_paired_sells:
-        paired_sells.to_csv(args.save_paired_sells, index=False)
+        paired_sells.sort_values(by='Symbol').to_csv(args.save_paired_sells, index=False)
     if args.save_sells:
-        trades.to_csv(args.save_sells, index=False)
+        trades.sort_values(by='Symbol').to_csv(args.save_sells, index=False)
     if args.save_unpaired_buys:
-        unpaired_buys.to_csv(args.save_unpaired_buys, index=False)
+        unpaired_buys.sort_values(by='Symbol').to_csv(args.save_unpaired_buys, index=False)
     if args.save_paired_buys:
-        paired_buys.to_csv(args.save_paired_buys, index=False)
+        paired_buys.sort_values(by='Symbol').to_csv(args.save_paired_buys, index=False)
     if args.save_buys:
-        buys.to_csv(args.save_buys, index=False)
+        buys.sort_values(by='Symbol').to_csv(args.save_buys, index=False)
 
     # Get unique years from trades
     years = trades['Year'].unique()
