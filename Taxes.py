@@ -3,7 +3,14 @@ import numpy as np
 import glob
 import argparse
 import re
+import hashlib
 
+def hash_row(row):
+    row_str = row.to_string()
+    hash_object = hashlib.sha256()
+    hash_object.update(row_str.encode())
+    hash_hex = hash_object.hexdigest()
+    return hash_hex
 # Load currency conversion rates from 'CurrencyRates.csv' as DataFrame
 # Header is: Year,Currency,Value in CZK
 # Example line: 2023,USD,20.5
@@ -68,7 +75,6 @@ def load_trades(directory, rates):
     # Extract year from Date/Time column and store it in new column 'Year'
     df['Year'] = df['Date/Time'].dt.year
     # Merge df with df_rates on Currency and Year columns, getting Value in CZK column from df_rates
-    df = pd.merge(df, rates, on=['Currency', 'Year'])
     # Convert numeric columns to numeric type
     df['Quantity'] = pd.to_numeric(df['Quantity'].str.replace(',', ''), errors='coerce')
     df['Proceeds'] = pd.to_numeric(df['Proceeds'], errors='coerce')
@@ -85,6 +91,10 @@ def load_trades(directory, rates):
     df = df.drop_duplicates()
     if (count != len(df)):
         print('Duplicates found and removed:', count - len(df))
+
+    df['Hash'] = df.apply(hash_row, axis=1)
+    df.set_index('Hash', inplace=True)
+
     return df
 
 def get_statistics_czk(trades, sells, year):
@@ -126,7 +136,7 @@ def pair_buy_sell(trades):
     per_symbol = trades.groupby('Symbol')
     buys_all = pd.DataFrame()
     sells_all = pd.DataFrame()
-    sell_buy_pairs = pd.DataFrame()
+    sell_buy_pairs = pd.DataFrame(columns=['Sell Transaction', 'Buy Transaction', 'Quantity'])
     for symbol, group in per_symbol:
         group['Covered Price'] = 0.0
         group['FIFO P/L'] = 0.0
@@ -149,13 +159,18 @@ def pair_buy_sell(trades):
                 for index_b, buy in buys_to_cover.iterrows():
                     # Reduce the quantity of the buy order by the quantity of the sell order
                     quantity = min(buy['Uncovered Quantity'], -sell['Uncovered Quantity'])
-                    # Update the quantity of the buy order in the original DataFrame
-                    buys.loc[index_b, 'Uncovered Quantity'] -= quantity
-                    buys.loc[index_b, 'Covered Quantity'] += quantity
-                    sell['Uncovered Quantity'] += quantity
-                    # Add covered price to the sell order
-                    covered_quantity += quantity
-                    covered_cost += quantity * buy['T. Price']
+                    if quantity != 0:
+                        # Update the quantity of the buy order in the original DataFrame
+                        buys.loc[index_b, 'Uncovered Quantity'] -= quantity
+                        buys.loc[index_b, 'Covered Quantity'] += quantity
+                        sell['Uncovered Quantity'] += quantity
+                        # Add covered price to the sell order
+                        covered_quantity += quantity
+                        covered_cost += quantity * buy['T. Price']
+                        # Add the pair to the DataFrame, indexing by hashes of the buy and sell transactions
+                        sell_buy_pairs = pd.concat([sell_buy_pairs, pd.DataFrame([{'Sell Transaction': sell.name, 'Buy Transaction': buy.name, 'Quantity': quantity}])], ignore_index=True)
+                        
+                        
                 # Update the sell order with the covered price and quantity
                 sells.loc[index_s, 'Covered Price'] = covered_cost
                 sells.loc[index_s, 'Covered Quantity'] = covered_quantity
@@ -165,58 +180,10 @@ def pair_buy_sell(trades):
 
         buys_all = pd.concat([buys_all, buys])
         sells_all = pd.concat([sells_all, sells])
-    return buys_all, sells_all
+    return buys_all, sells_all, sell_buy_pairs
 
-def main():
-    # Process command-line arguments
-    parser = argparse.ArgumentParser(description='Process command-line arguments')
-
-    # Add the arguments
-    parser.add_argument('--trades', type=str, help='Path to Trades CSV files')
-    parser.add_argument('--settings', type=str, help='Path to CurrencyRates.csv file')
-    parser.add_argument('--save-imported', type=str, help='Save all imported data without any processing')
-    parser.add_argument('--save-paired-sells', type=str, help='Save sells that were fully paired')
-    parser.add_argument('--save-unpaired-sells', type=str, help='Save sells not fully paired')
-    parser.add_argument('--save-sells', type=str, help='Save all processed sells')
-    parser.add_argument('--save-paired-buys', type=str, help='Save buys that were fully paired')
-    parser.add_argument('--save-unpaired-buys', type=str, help='Save buys not fully paired')
-    parser.add_argument('--save-buys', type=str, help='Save all processed buys')
-
-    # Parse the arguments
-    args = parser.parse_args()
-
-    # Load data
-    rates = load_rates(args.settings)
-    trades = load_trades(args.trades, rates)
-
-    # Pair buy and sell orders
-    buys, sells = pair_buy_sell(trades)
-    paired_sells = sells[sells['Uncovered Quantity'] == 0]
-    unpaired_sells = sells[sells['Uncovered Quantity'] != 0]
-    paired_buys = buys[buys['Uncovered Quantity'] == 0]
-    unpaired_buys = buys[buys['Uncovered Quantity'] != 0]
-
-    # Save unpaired sells to CSV
-    if args.save_imported:
-        trades.drop(['Covered Quantity', 'Uncovered Quantity'], axis=1, inplace=False).sort_values(by='Symbol').to_csv(args.save_imported, index=False)
-    if args.save_unpaired_sells:
-        unpaired_sells.sort_values(by='Symbol').to_csv(args.save_unpaired_sells, index=False)
-    if args.save_paired_sells:
-        paired_sells.sort_values(by='Symbol').to_csv(args.save_paired_sells, index=False)
-    if args.save_sells:
-        sells.sort_values(by='Symbol').to_csv(args.save_sells, index=False)
-    if args.save_unpaired_buys:
-        unpaired_buys.sort_values(by='Symbol').to_csv(args.save_unpaired_buys, index=False)
-    if args.save_paired_buys:
-        paired_buys.sort_values(by='Symbol').to_csv(args.save_paired_buys, index=False)
-    if args.save_buys:
-        buys.sort_values(by='Symbol').to_csv(args.save_buys, index=False)
-
-    # Get unique years from trades
-    years = trades['Year'].unique()
-
+def print_statistics(trades, sells, year):
     # Get statistics for last year
-    year = years.max()
     purchases, sales, commissions, profit_loss_avg, profit_loss_fifo, profit_loss_lifo = get_statistics_czk(trades, sells, year)
 
     # Print results so far. Format them as CZK currency with 2 decimal places and thousands separator
@@ -244,6 +211,63 @@ def main():
     print('Total FIFO profit/loss per currency:', profit_loss_fifo_raw)
     print('Total LIFO profit/loss per currency:', profit_loss_lifo_raw)
     print('Total commissions per currency:', commissions_raw)
+
+def main():
+    # Process command-line arguments
+    parser = argparse.ArgumentParser(description='Process command-line arguments')
+
+    # Add the arguments
+    parser.add_argument('--trades', type=str, help='Path to Trades CSV files')
+    parser.add_argument('--settings', type=str, help='Path to CurrencyRates.csv file')
+    parser.add_argument('--compute', action='store_true', help='Compute statistics')
+    parser.add_argument('--update-pairs', type=str, help='Save pairs of buy and sell orders')
+    parser.add_argument('--save-imported', type=str, help='Save all imported data without any processing')
+    parser.add_argument('--save-paired-sells', type=str, help='Save sells that were fully paired')
+    parser.add_argument('--save-unpaired-sells', type=str, help='Save sells not fully paired')
+    parser.add_argument('--save-sells', type=str, help='Save all processed sells')
+    parser.add_argument('--save-paired-buys', type=str, help='Save buys that were fully paired')
+    parser.add_argument('--save-unpaired-buys', type=str, help='Save buys not fully paired')
+    parser.add_argument('--save-buys', type=str, help='Save all processed buys')
+
+    # Parse the arguments
+    args = parser.parse_args()
+
+    # Load data
+    rates = load_rates(args.settings)
+    trades = load_trades(args.trades, rates)
+
+    # Pair buy and sell orders
+    buys, sells, sell_buy_pairs = pair_buy_sell(trades)
+    paired_sells = sells[sells['Uncovered Quantity'] == 0]
+    unpaired_sells = sells[sells['Uncovered Quantity'] != 0]
+    paired_buys = buys[buys['Uncovered Quantity'] == 0]
+    unpaired_buys = buys[buys['Uncovered Quantity'] != 0]
+
+    # Save unpaired sells to CSV
+    if args.save_imported:
+        trades.drop(['Covered Quantity', 'Uncovered Quantity'], axis=1, inplace=False).sort_values(by='Symbol').to_csv(args.save_imported, index=True)
+    if args.save_unpaired_sells:
+        unpaired_sells.sort_values(by='Symbol').to_csv(args.save_unpaired_sells, index=False)
+    if args.save_paired_sells:
+        paired_sells.sort_values(by='Symbol').to_csv(args.save_paired_sells, index=False)
+    if args.save_sells:
+        sells.sort_values(by='Symbol').to_csv(args.save_sells, index=False)
+    if args.save_unpaired_buys:
+        unpaired_buys.sort_values(by='Symbol').to_csv(args.save_unpaired_buys, index=False)
+    if args.save_paired_buys:
+        paired_buys.sort_values(by='Symbol').to_csv(args.save_paired_buys, index=False)
+    if args.save_buys:
+        buys.sort_values(by='Symbol').to_csv(args.save_buys, index=False)
+    if args.update_pairs:
+        sell_buy_pairs.to_csv(args.update_pairs, index=True)
+
+    if args.compute:
+        # Get unique years from trades
+        years = trades['Year'].unique()
+        # Get statistics for last year
+        year = years.max()
+        print_statistics(trades, sells, year)
+
 
 if __name__ == "__main__":
     main()
