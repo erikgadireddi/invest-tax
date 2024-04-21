@@ -123,6 +123,7 @@ def pair_buy_sell(trades):
     for symbol, group in per_symbol:
         group['Covered Price'] = 0.0
         group['Covered Quantity'] = 0.0
+        group['Uncovered Quantity'] = group['Quantity']
         group['FIFO P/L'] = 0.0
         group['LIFO P/L'] = 0.0
         # Find sell orders
@@ -134,7 +135,7 @@ def pair_buy_sell(trades):
             # For each sell order, find enough buy orders to cover it
             for index_s, sell in sells.iterrows():
                 # Find enough buy orders to cover the sell order
-                buys_to_cover = buys[(buys['Date/Time'] < sell['Date/Time']) & (buys['Quantity'] > 0)]
+                buys_to_cover = buys[(buys['Date/Time'] < sell['Date/Time']) & (buys['Uncovered Quantity'] > 0)]
                 # Sort according to FIFO/LIFO (ascending/descending)
                 buys_to_cover = buys_to_cover.sort_values(by=['Date/Time'], ascending=use_fifo)
                 covered_quantity = 0
@@ -142,9 +143,9 @@ def pair_buy_sell(trades):
                 # If there are enough buy orders to cover the sell order
                 for index_b, buy in buys_to_cover.iterrows():
                     # Reduce the quantity of the buy order by the quantity of the sell order
-                    quantity = min(buy['Quantity'], -sell['Quantity'])
+                    quantity = min(buy['Uncovered Quantity'], -sell['Quantity'])
                     # Update the quantity of the buy order in the original DataFrame
-                    buys.loc[index_b, 'Quantity'] -= quantity
+                    buys.loc[index_b, 'Uncovered Quantity'] -= quantity
                     sell['Quantity'] += quantity
                     # Add covered price to the sell order
                     covered_quantity += quantity
@@ -185,8 +186,8 @@ def main():
     buys, sells = pair_buy_sell(trades)
     paired_sells = sells[sells['Quantity'] == -sells['Covered Quantity']]
     unpaired_sells = sells[sells['Quantity'] != -sells['Covered Quantity']]
-    paired_buys = buys[buys['Quantity'] == 0]
-    unpaired_buys = buys[buys['Quantity'] != 0]
+    paired_buys = buys[buys['Uncovered Quantity'] == 0]
+    unpaired_buys = buys[buys['Uncovered Quantity'] != 0]
 
     # Save unpaired sells to CSV
     if args.save_imported:
