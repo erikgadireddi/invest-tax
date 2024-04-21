@@ -248,20 +248,21 @@ def main():
     unpaired_buys = buys[buys['Uncovered Quantity'] != 0]
 
     # Save unpaired sells to CSV
+    sort_columns = ['Symbol', 'Date/Time']
     if args.save_imported:
-        trades.drop(['Covered Quantity', 'Uncovered Quantity'], axis=1, inplace=False).sort_values(by='Symbol').to_csv(args.save_imported, index=True)
+        trades.drop(['Covered Quantity', 'Uncovered Quantity'], axis=1, inplace=False).sort_values(by=sort_columns).to_csv(args.save_imported, index=True)
     if args.save_unpaired_sells:
-        unpaired_sells.sort_values(by='Symbol').to_csv(args.save_unpaired_sells, index=False)
+        unpaired_sells.sort_values(by=sort_columns).to_csv(args.save_unpaired_sells, index=False)
     if args.save_paired_sells:
-        paired_sells.sort_values(by='Symbol').to_csv(args.save_paired_sells, index=False)
+        paired_sells.sort_values(by=sort_columns).to_csv(args.save_paired_sells, index=False)
     if args.save_sells:
-        sells.sort_values(by='Symbol').to_csv(args.save_sells, index=False)
+        sells.sort_values(by=sort_columns).to_csv(args.save_sells, index=False)
     if args.save_unpaired_buys:
-        unpaired_buys.sort_values(by='Symbol').to_csv(args.save_unpaired_buys, index=False)
+        unpaired_buys.sort_values(by=sort_columns).to_csv(args.save_unpaired_buys, index=False)
     if args.save_paired_buys:
-        paired_buys.sort_values(by='Symbol').to_csv(args.save_paired_buys, index=False)
+        paired_buys.sort_values(by=sort_columns).to_csv(args.save_paired_buys, index=False)
     if args.save_buys:
-        buys.sort_values(by='Symbol').to_csv(args.save_buys, index=False)
+        buys.sort_values(by=sort_columns).to_csv(args.save_buys, index=False)
     if args.update_pairs:
         sell_buy_pairs.to_csv(args.update_pairs, index=True)
 
