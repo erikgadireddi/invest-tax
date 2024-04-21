@@ -139,7 +139,7 @@ def pair_buy_sell(trades):
     per_symbol = trades.groupby('Symbol')
     buys_all = pd.DataFrame()
     sells_all = pd.DataFrame()
-    sell_buy_pairs = pd.DataFrame(columns=['Buy Transaction', 'Sell Transaction', 'Symbol', 'Quantity', 'Buy Time', 'Buy Price', 'Sell Time', 'Sell Price', 'Ratio'])
+    sell_buy_pairs = pd.DataFrame(columns=['Buy Transaction', 'Sell Transaction', 'Symbol', 'Quantity', 'Buy Time', 'Buy Price', 'Sell Time', 'Sell Price', 'Buy Cost', 'Sell Proceeds', 'Ratio'])
     for symbol, group in per_symbol:
         group['Covered Price'] = 0.0
         group['FIFO P/L'] = 0.0
@@ -171,9 +171,13 @@ def pair_buy_sell(trades):
                         covered_quantity += quantity
                         covered_cost += quantity * buy['T. Price']
                         # Add the pair to the DataFrame, indexing by hashes of the buy and sell transactions
-                        sell_buy_pairs = pd.concat([sell_buy_pairs, pd.DataFrame([{'Sell Transaction': index_s, 'Buy Transaction': index_b, 'Symbol': symbol,
-                                                                                   'Quantity': quantity, 'Buy Time': buy['Date/Time'], 'Sell Time': sell['Date/Time'],
-                                                                                   'Buy Price': buy['T. Price'], 'Sell Price': sell['T. Price'], 'Ratio': sell['T. Price']/buy['T. Price'] }])], ignore_index=True)
+                        data = {'Sell Transaction': index_s, 'Buy Transaction': index_b, 'Symbol': symbol,
+                                'Quantity': quantity, 'Buy Time': buy['Date/Time'], 'Sell Time': sell['Date/Time'],
+                                'Buy Price': buy['T. Price'], 'Sell Price': sell['T. Price'], 
+                                'Buy Cost': buy['T. Price'] - (buy['Comm/Fee'] / buy['Quantity']), 
+                                'Sell Proceeds': sell['T. Price'] - (sell['Comm/Fee'] / sell['Quantity']), 
+                                'Ratio': sell['T. Price']/buy['T. Price'] }
+                        sell_buy_pairs = pd.concat([sell_buy_pairs, pd.DataFrame([data])], ignore_index=True)
                         
                 # Update the sell order with the covered price and quantity
                 sells.loc[index_s, 'Covered Price'] = covered_cost
@@ -264,7 +268,7 @@ def main():
     if args.save_buys:
         buys.sort_values(by=sort_columns).to_csv(args.save_buys, index=False)
     if args.update_pairs:
-        sell_buy_pairs.to_csv(args.update_pairs, index=True)
+        sell_buy_pairs.round(3).to_csv(args.update_pairs, index=True)
 
     if args.compute:
         # Get unique years from trades
