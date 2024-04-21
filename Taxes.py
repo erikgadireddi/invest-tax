@@ -269,6 +269,8 @@ def main():
         buys.sort_values(by=sort_columns).to_csv(args.save_buys, index=False)
     if args.update_pairs:
         sell_buy_pairs.round(3).to_csv(args.update_pairs, index=True)
+        for year in trades['Year'].unique():
+            sell_buy_pairs[sell_buy_pairs['Sell Time'].dt.year == year].round(3).to_csv("{0}.{1}.csv".format(args.update_pairs, year), index=True)
 
     if args.compute:
         # Get unique years from trades
