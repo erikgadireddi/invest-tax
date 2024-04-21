@@ -97,6 +97,9 @@ def load_trades(directory, rates):
 
     return df
 
+def get_adjusted_price(ticker, date):
+    pass
+
 def get_statistics_czk(trades, sells, year):
     # Filter DataFrame by year
     df = trades[trades['Year'] == year]
@@ -136,7 +139,7 @@ def pair_buy_sell(trades):
     per_symbol = trades.groupby('Symbol')
     buys_all = pd.DataFrame()
     sells_all = pd.DataFrame()
-    sell_buy_pairs = pd.DataFrame(columns=['Sell Transaction', 'Buy Transaction', 'Quantity'])
+    sell_buy_pairs = pd.DataFrame(columns=['Buy Transaction', 'Sell Transaction', 'Symbol', 'Quantity', 'Buy Time', 'Buy Price', 'Sell Time', 'Sell Price', 'Ratio'])
     for symbol, group in per_symbol:
         group['Covered Price'] = 0.0
         group['FIFO P/L'] = 0.0
@@ -168,8 +171,9 @@ def pair_buy_sell(trades):
                         covered_quantity += quantity
                         covered_cost += quantity * buy['T. Price']
                         # Add the pair to the DataFrame, indexing by hashes of the buy and sell transactions
-                        sell_buy_pairs = pd.concat([sell_buy_pairs, pd.DataFrame([{'Sell Transaction': sell.name, 'Buy Transaction': buy.name, 'Quantity': quantity}])], ignore_index=True)
-                        
+                        sell_buy_pairs = pd.concat([sell_buy_pairs, pd.DataFrame([{'Sell Transaction': index_s, 'Buy Transaction': index_b, 'Symbol': symbol,
+                                                                                   'Quantity': quantity, 'Buy Time': buy['Date/Time'], 'Sell Time': sell['Date/Time'],
+                                                                                   'Buy Price': buy['T. Price'], 'Sell Price': sell['T. Price'], 'Ratio': sell['T. Price']/buy['T. Price'] }])], ignore_index=True)
                         
                 # Update the sell order with the covered price and quantity
                 sells.loc[index_s, 'Covered Price'] = covered_cost
