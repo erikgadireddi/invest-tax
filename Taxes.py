@@ -298,13 +298,11 @@ def main():
         sell_buy_pairs.round(3).to_csv(args.update_pairs, index=True)
         for year in trades['Year'].unique():
             for use_yearly_rates in [True, False]:
-                sell_buy_pairs['Year'] = sell_buy_pairs['Sell Time'].dt.year
-                sell_buy_pairs.apply(lambda row: yearly_rates.loc[2021, row['Currency']], axis=1)
+                if use_yearly_rates:
+                    sell_buy_pairs['CZK Rate'] = sell_buy_pairs.apply(lambda row: yearly_rates.loc[row['Sell Time'].year, row['Currency']] if row['Sell Time'].year in yearly_rates.index else np.nan, axis=1)
+                else:
+                    sell_buy_pairs['CZK Rate'] = sell_buy_pairs.apply(lambda row: daily_rates.loc[pd.to_datetime(row['Sell Time'].date()), row['Currency']] if pd.to_datetime(row['Sell Time'].date()) in daily_rates.index else np.nan, axis=1)
                 
-                # Map index of yearly_rates to year of Sell Time
-                sell_buy_pairs['CZK Rate'] = sell_buy_pairs['Sell Time'].dt.year.map(yearly_rates[sell_buy_pairs['Currency']])
-                                
-                # sell_buy_pairs['CZK Rate'] = sell_buy_pairs['Sell Time'].dt.year.map(yearly_rates['CZK Rate']) if use_yearly_rates else sell_buy_pairs['Sell Time'].dt.date.map(daily_rates.squeeze()['1 USD'])
                 sell_buy_pairs[sell_buy_pairs['Sell Time'].dt.year == year].round(3).to_csv("{0}.{1}.{2}.csv".format(args.update_pairs, year, 'yearly' if use_yearly_rates else 'daily'), index=True)
 
     if args.compute:
