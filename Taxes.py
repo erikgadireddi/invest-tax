@@ -254,12 +254,12 @@ def main():
 #    parser.add_argument('--compute', action='store_true', help='Compute statistics')
     parser.add_argument('--save-trade-overview-dir', type=str, help='Directory to output overviews of matched trades')
     parser.add_argument('--load-matched-trades', type=str, help='Paired trades input to load')
-    parser.add_argument('--save-matched-trades', type=str, help='Location to save paired trades')
+    parser.add_argument('--save-matched-trades', type=str, help='Save updated paired trades')
     
     # Parse the arguments
     args = parser.parse_args()
 
-    if args.import_trades_dir is None and args.load_trades_file is None:
+    if args.import_trades_dir is None and args.load_trades is None:
         print('No input directory or processed trades file specified. Exiting.')
         return
 
@@ -285,31 +285,30 @@ def main():
     sort_columns = ['Symbol', 'Date/Time']
     if args.save_trades:
         trades.drop(['Covered Quantity', 'Uncovered Quantity'], axis=1, inplace=False).sort_values(by=sort_columns).to_csv(args.save_trades, index=True)
-    if args.save_sells:
-        sells.sort_values(by=sort_columns).to_csv(args.save_sells, index=False)
-        paired_sells.sort_values(by=sort_columns).to_csv(args.save_paired_sells, index=False)
-        unpaired_sells.sort_values(by=sort_columns).to_csv(args.save_unpaired_sells, index=False)
-    if args.save_buys:
-        buys.sort_values(by=sort_columns).to_csv(args.save_buys, index=False)
-        paired_buys.sort_values(by=sort_columns).to_csv(args.save_paired_buys, index=False)
-        unpaired_buys.sort_values(by=sort_columns).to_csv(args.save_unpaired_buys, index=False)
-    if args.update_pairs:
-        sell_buy_pairs.round(3).to_csv(args.outputdir + '/paired.orders.csv', index=True)
+    if args.save_trade_overview_dir:
+        sells.sort_values(by=sort_columns).to_csv(args.save_trade_overview_dir + '/sells.csv', index=False)
+        paired_sells.sort_values(by=sort_columns).to_csv(args.save_trade_overview_dir + '/sells.paired.csv', index=False)
+        unpaired_sells.sort_values(by=sort_columns).to_csv(args.save_trade_overview_dir + '/sells.unpaired.csv', index=False)
+        buys.sort_values(by=sort_columns).to_csv(args.save_trade_overview_dir + '/buys.csv', index=False)
+        paired_buys.sort_values(by=sort_columns).to_csv(args.save_trade_overview_dir + '/buys.paired.csv', index=False)
+        unpaired_buys.sort_values(by=sort_columns).to_csv(args.save_trade_overview_dir + '/buys.unpaired.csv', index=False)
+    if args.save_matched_trades:
+        sell_buy_pairs.round(3).to_csv(args.save_matched_trades, index=True)
         for year in trades['Year'].unique():
             for use_yearly_rates in [True, False]:
                 if use_yearly_rates:
                     sell_buy_pairs['CZK Rate'] = sell_buy_pairs.apply(lambda row: yearly_rates.loc[row['Sell Time'].year, row['Currency']] if row['Sell Time'].year in yearly_rates.index else np.nan, axis=1)
                 else:
                     sell_buy_pairs['CZK Rate'] = sell_buy_pairs.apply(lambda row: daily_rates.loc[pd.to_datetime(row['Sell Time'].date()), row['Currency']] if pd.to_datetime(row['Sell Time'].date()) in daily_rates.index else np.nan, axis=1)
-                sell_buy_pairs[sell_buy_pairs['Sell Time'].dt.year == year].round(3).to_csv(args.outputdir + "/paired.orders.{0}.{1}.csv".format(year, 'yearly' if use_yearly_rates else 'daily'), index=True)
-            unpaired_sells[unpaired_sells['Year'] == year].round(3).to_csv(args.outputdir + "/unpaired.sells.{0}.csv".format(year), index=True)
+                sell_buy_pairs[sell_buy_pairs['Sell Time'].dt.year == year].round(3).to_csv(args.save_matched_trades + ".{0}.{1}.csv".format(year, 'yearly' if use_yearly_rates else 'daily'), index=True)
+            unpaired_sells[unpaired_sells['Year'] == year].round(3).to_csv(args.save_matched_trades + ".{0}.unpaired.csv".format(year), index=True)
 
-    if args.compute:
-        # Get unique years from trades
-        years = trades['Year'].unique()
-        # Get statistics for last year
-        year = years.max()
-        print_statistics(trades, sells, year)
+    # if args.compute:
+    #     # Get unique years from trades
+    #     years = trades['Year'].unique()
+    #     # Get statistics for last year
+    #     year = years.max()
+    #     print_statistics(trades, sells, year)
 
 
 if __name__ == "__main__":
