@@ -54,6 +54,7 @@ def convert_trade_columns(df):
     df['Realized P/L'] = pd.to_numeric(df['Realized P/L'], errors='coerce')
     df['MTM P/L'] = pd.to_numeric(df['MTM P/L'], errors='coerce')
     df['T. Price'] = pd.to_numeric(df['T. Price'], errors='coerce')
+    df['Type'] = df['Code'].apply(lambda x: 'Open' if 'O' in x else 'Close' if 'C' in x else 'Unknown')
     return df
 
 # Load Trades CSV as DataFrame
@@ -167,10 +168,10 @@ def pair_buy_sell(trades):
         group['FIFO P/L'] = 0.0
         group['LIFO P/L'] = 0.0
         # Find sell orders
-        sells = group[group['Uncovered Quantity'] < 0]
+        sells = group[group['Type'] == 'Close']
         for use_fifo in [True]:
             # Find buy orders. We'll use the quantity column to determine which buy orders were used to cover the sell orders
-            buys = group[group['Uncovered Quantity'] > 0]
+            buys = group[group['Type'] == 'Open']
             algo_name = 'FIFO P/L' if use_fifo else 'LIFO P/L'
             # For each sell order, find enough buy orders to cover it
             for index_s, sell in sells.iterrows():
