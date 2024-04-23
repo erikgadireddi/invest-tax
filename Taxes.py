@@ -45,17 +45,19 @@ def load_daily_rates(directory):
     df = adjust_rates_columns(df)
     return df
 
-# Load Trades CSV as DataFrame
-def load_trades(directory, rates):
-    # Merge with all Trades.[year].csv files in the directory, which are assumed to contain only trades
-    df = None
-    for f in glob.glob(directory + '/Trades.*.csv'):
-        if df is None:
-            df = pd.read_csv(f)
-        else:
-            df = pd.concat([df, pd.read_csv(f)], ignore_index = True)
-    print(df)
+def convert_trade_columns(df):
+    df['Date/Time'] = pd.to_datetime(df['Date/Time'])
+    df['Quantity'] = pd.to_numeric(df['Quantity'], errors='coerce')
+    df['Proceeds'] = pd.to_numeric(df['Proceeds'], errors='coerce')
+    df['Comm/Fee'] = pd.to_numeric(df['Comm/Fee'], errors='coerce')
+    df['Basis'] = pd.to_numeric(df['Basis'], errors='coerce')
+    df['Realized P/L'] = pd.to_numeric(df['Realized P/L'], errors='coerce')
+    df['MTM P/L'] = pd.to_numeric(df['MTM P/L'], errors='coerce')
+    df['T. Price'] = pd.to_numeric(df['T. Price'], errors='coerce')
+    return df
 
+# Load Trades CSV as DataFrame
+def load_trades(directory, existing_trades=None):
     # Go over all 'Activity' exports that contain all data and extract only the 'Trades' part
     data = None
     for f in glob.glob(directory + '/U*_*_*.csv'):
@@ -96,30 +98,24 @@ def load_trades(directory, rates):
     # Filter DataFrame by Asset Category == 'Stocks' and DataDiscriminator == 'Data' (rest is partial sums and totals)
     df = df[(df['Asset Category'] == 'Stocks') & (df['DataDiscriminator'] == 'Order')]
 
-    # Convert Date/Time column to datetime type
+    # Convert columns to correct types
     df['Date/Time'] = pd.to_datetime(df['Date/Time'], format='%Y-%m-%d, %H:%M:%S')
-    # Extract year from Date/Time column and store it in new column 'Year'
     df['Year'] = df['Date/Time'].dt.year
-    # Merge df with df_rates on Currency and Year columns, getting Value in CZK column from df_rates
-    # Convert numeric columns to numeric type
     df['Quantity'] = pd.to_numeric(df['Quantity'].str.replace(',', ''), errors='coerce')
-    df['Proceeds'] = pd.to_numeric(df['Proceeds'], errors='coerce')
-    df['Comm/Fee'] = pd.to_numeric(df['Comm/Fee'], errors='coerce')
-    df['Basis'] = pd.to_numeric(df['Basis'], errors='coerce')
-    df['Realized P/L'] = pd.to_numeric(df['Realized P/L'], errors='coerce')
-    df['MTM P/L'] = pd.to_numeric(df['MTM P/L'], errors='coerce')
-    df['T. Price'] = pd.to_numeric(df['T. Price'], errors='coerce')
+    # Convert the rest
+    df = convert_trade_columns(df)
+    # Set up the hash column as index
+    df['Hash'] = df.apply(hash_row, axis=1)
+    df.set_index('Hash', inplace=True)
 
+    df = pd.concat([existing_trades, df])
     # Order by Date/Time
     df = df.sort_values(by=['Date/Time'])
     # Count the rows before removing duplicates
     count = len(df)
-    df = df.drop_duplicates()
+    df = df[~df.index.duplicated(keep='first')]
     if (count != len(df)):
         print('Duplicates found and removed:', count - len(df))
-
-    df['Hash'] = df.apply(hash_row, axis=1)
-    df.set_index('Hash', inplace=True)
 
     return df
 
@@ -251,25 +247,32 @@ def main():
     parser = argparse.ArgumentParser(description='Process command-line arguments')
 
     # Add the arguments
-    parser.add_argument('--trades', type=str, help='Path to Trades CSV files')
-    parser.add_argument('--settings', type=str, help='Path to CurrencyRates.csv file')
-    parser.add_argument('--compute', action='store_true', help='Compute statistics')
-    parser.add_argument('--update-pairs', type=str, help='Save pairs of buy and sell orders')
-    parser.add_argument('--save-imported', type=str, help='Save all imported data without any processing')
-    parser.add_argument('--save-paired-sells', type=str, help='Save sells that were fully paired')
-    parser.add_argument('--save-unpaired-sells', type=str, help='Save sells not fully paired')
-    parser.add_argument('--save-sells', type=str, help='Save all processed sells')
-    parser.add_argument('--save-paired-buys', type=str, help='Save buys that were fully paired')
-    parser.add_argument('--save-unpaired-buys', type=str, help='Save buys not fully paired')
-    parser.add_argument('--save-buys', type=str, help='Save all processed buys')
-
+    parser.add_argument('--settings-dir', type=str, required=True, help='Path to CurrencyRates.csv file')
+    parser.add_argument('--import-trades-dir', type=str, help='Path to Trades CSV files')
+    parser.add_argument('--load-trades', type=str, help='Path to load processed trades file')
+    parser.add_argument('--save-trades', type=str, help='Path to save processed trades file after import')
+#    parser.add_argument('--compute', action='store_true', help='Compute statistics')
+    parser.add_argument('--save-trade-overview-dir', type=str, help='Directory to output overviews of matched trades')
+    parser.add_argument('--load-matched-trades', type=str, help='Paired trades input to load')
+    parser.add_argument('--save-matched-trades', type=str, help='Location to save paired trades')
+    
     # Parse the arguments
     args = parser.parse_args()
 
+    if args.import_trades_dir is None and args.load_trades_file is None:
+        print('No input directory or processed trades file specified. Exiting.')
+        return
+
     # Load data
-    daily_rates = load_daily_rates(args.settings)
-    yearly_rates = load_yearly_rates(args.settings)
-    trades = load_trades(args.trades, yearly_rates)
+    daily_rates = load_daily_rates(args.settings_dir)
+    yearly_rates = load_yearly_rates(args.settings_dir)
+
+    if args.load_trades is not None:
+        trades = pd.read_csv(args.load_trades)
+        trades = convert_trade_columns(trades)
+        trades.set_index('Hash', inplace=True)
+    if args.import_trades_dir is not None:
+        trades = load_trades(args.import_trades_dir, trades)
 
     # Pair buy and sell orders
     buys, sells, sell_buy_pairs = pair_buy_sell(trades)
@@ -280,30 +283,26 @@ def main():
 
     # Save unpaired sells to CSV
     sort_columns = ['Symbol', 'Date/Time']
-    if args.save_imported:
-        trades.drop(['Covered Quantity', 'Uncovered Quantity'], axis=1, inplace=False).sort_values(by=sort_columns).to_csv(args.save_imported, index=True)
-    if args.save_unpaired_sells:
-        unpaired_sells.sort_values(by=sort_columns).to_csv(args.save_unpaired_sells, index=False)
-    if args.save_paired_sells:
-        paired_sells.sort_values(by=sort_columns).to_csv(args.save_paired_sells, index=False)
+    if args.save_trades:
+        trades.drop(['Covered Quantity', 'Uncovered Quantity'], axis=1, inplace=False).sort_values(by=sort_columns).to_csv(args.save_trades, index=True)
     if args.save_sells:
         sells.sort_values(by=sort_columns).to_csv(args.save_sells, index=False)
-    if args.save_unpaired_buys:
-        unpaired_buys.sort_values(by=sort_columns).to_csv(args.save_unpaired_buys, index=False)
-    if args.save_paired_buys:
-        paired_buys.sort_values(by=sort_columns).to_csv(args.save_paired_buys, index=False)
+        paired_sells.sort_values(by=sort_columns).to_csv(args.save_paired_sells, index=False)
+        unpaired_sells.sort_values(by=sort_columns).to_csv(args.save_unpaired_sells, index=False)
     if args.save_buys:
         buys.sort_values(by=sort_columns).to_csv(args.save_buys, index=False)
+        paired_buys.sort_values(by=sort_columns).to_csv(args.save_paired_buys, index=False)
+        unpaired_buys.sort_values(by=sort_columns).to_csv(args.save_unpaired_buys, index=False)
     if args.update_pairs:
-        sell_buy_pairs.round(3).to_csv(args.update_pairs, index=True)
+        sell_buy_pairs.round(3).to_csv(args.outputdir + '/paired.orders.csv', index=True)
         for year in trades['Year'].unique():
             for use_yearly_rates in [True, False]:
                 if use_yearly_rates:
                     sell_buy_pairs['CZK Rate'] = sell_buy_pairs.apply(lambda row: yearly_rates.loc[row['Sell Time'].year, row['Currency']] if row['Sell Time'].year in yearly_rates.index else np.nan, axis=1)
                 else:
                     sell_buy_pairs['CZK Rate'] = sell_buy_pairs.apply(lambda row: daily_rates.loc[pd.to_datetime(row['Sell Time'].date()), row['Currency']] if pd.to_datetime(row['Sell Time'].date()) in daily_rates.index else np.nan, axis=1)
-                
-                sell_buy_pairs[sell_buy_pairs['Sell Time'].dt.year == year].round(3).to_csv("{0}.{1}.{2}.csv".format(args.update_pairs, year, 'yearly' if use_yearly_rates else 'daily'), index=True)
+                sell_buy_pairs[sell_buy_pairs['Sell Time'].dt.year == year].round(3).to_csv(args.outputdir + "/paired.orders.{0}.{1}.csv".format(year, 'yearly' if use_yearly_rates else 'daily'), index=True)
+            unpaired_sells[unpaired_sells['Year'] == year].round(3).to_csv(args.outputdir + "/unpaired.sells.{0}.csv".format(year), index=True)
 
     if args.compute:
         # Get unique years from trades
