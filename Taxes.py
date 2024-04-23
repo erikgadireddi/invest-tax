@@ -293,15 +293,15 @@ def main():
         paired_buys.sort_values(by=sort_columns).to_csv(args.save_trade_overview_dir + '/buys.paired.csv', index=False)
         unpaired_buys.sort_values(by=sort_columns).to_csv(args.save_trade_overview_dir + '/buys.unpaired.csv', index=False)
     if args.save_matched_trades:
-        sell_buy_pairs.round(3).to_csv(args.save_matched_trades, index=True)
+        sell_buy_pairs.round(3).to_csv(args.save_matched_trades, index=False)
         for year in trades['Year'].unique():
             for use_yearly_rates in [True, False]:
                 if use_yearly_rates:
                     sell_buy_pairs['CZK Rate'] = sell_buy_pairs.apply(lambda row: yearly_rates.loc[row['Sell Time'].year, row['Currency']] if row['Sell Time'].year in yearly_rates.index else np.nan, axis=1)
                 else:
                     sell_buy_pairs['CZK Rate'] = sell_buy_pairs.apply(lambda row: daily_rates.loc[pd.to_datetime(row['Sell Time'].date()), row['Currency']] if pd.to_datetime(row['Sell Time'].date()) in daily_rates.index else np.nan, axis=1)
-                sell_buy_pairs[sell_buy_pairs['Sell Time'].dt.year == year].round(3).to_csv(args.save_matched_trades + ".{0}.{1}.csv".format(year, 'yearly' if use_yearly_rates else 'daily'), index=True)
-            unpaired_sells[unpaired_sells['Year'] == year].round(3).to_csv(args.save_matched_trades + ".{0}.unpaired.csv".format(year), index=True)
+                sell_buy_pairs[sell_buy_pairs['Sell Time'].dt.year == year].round(3).to_csv(args.save_matched_trades + ".{0}.{1}.csv".format(year, 'yearly' if use_yearly_rates else 'daily'), index=False)
+            unpaired_sells[unpaired_sells['Year'] == year].round(3).to_csv(args.save_matched_trades + ".{0}.unpaired.csv".format(year), index=False)
 
     # if args.compute:
     #     # Get unique years from trades
