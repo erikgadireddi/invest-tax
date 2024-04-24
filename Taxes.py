@@ -54,7 +54,8 @@ def convert_trade_columns(df):
     df['Realized P/L'] = pd.to_numeric(df['Realized P/L'], errors='coerce')
     df['MTM P/L'] = pd.to_numeric(df['MTM P/L'], errors='coerce')
     df['T. Price'] = pd.to_numeric(df['T. Price'], errors='coerce')
-    df['Type'] = df['Code'].apply(lambda x: 'Open' if 'O' in x else 'Close' if 'C' in x else 'Unknown')
+    df['Action'] = df['Code'].apply(lambda x: 'Open' if 'O' in x else 'Close' if 'C' in x else 'Unknown')
+    df['Type'] = df.apply(lambda row: 'Long' if (row['Action'] == 'Open' and row['Quantity'] > 0) or (row['Action'] == 'Close' and row['Quantity'] < 0) else 'Short', axis=1)
     return df
 
 # Load Trades CSV as DataFrame
@@ -158,7 +159,7 @@ def pair_buy_sell(trades):
     # From the buy orders, compute the average price (T. Price) for the amount to cover the sell order and add it to the sell order as 'Covered Price'
     # If a sell order is not covered by any buy orders, it is ignored
     trades['Covered Quantity'] = 0.0
-    trades['Uncovered Quantity'] = trades['Quantity']
+    trades['Uncovered Quantity'] = trades.apply(lambda row: row['Quantity'] if row['Type'] == 'Long' else -row['Quantity'], axis=1)
     per_symbol = trades.groupby('Symbol')
     buys_all = pd.DataFrame()
     sells_all = pd.DataFrame()
@@ -168,10 +169,10 @@ def pair_buy_sell(trades):
         group['FIFO P/L'] = 0.0
         group['LIFO P/L'] = 0.0
         # Find sell orders
-        sells = group[group['Type'] == 'Close']
+        sells = group[group['Action'] == 'Close']
         for use_fifo in [True]:
             # Find buy orders. We'll use the quantity column to determine which buy orders were used to cover the sell orders
-            buys = group[group['Type'] == 'Open']
+            buys = group[group['Action'] == 'Open']
             algo_name = 'FIFO P/L' if use_fifo else 'LIFO P/L'
             # For each sell order, find enough buy orders to cover it
             for index_s, sell in sells.iterrows():
