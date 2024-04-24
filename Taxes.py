@@ -211,7 +211,7 @@ def pair_buy_sell(trades):
                 # Update the sell order with the covered price and quantity
                 sells.loc[index_s, 'Covered Price'] = covered_cost
                 sells.loc[index_s, 'Covered Quantity'] = covered_quantity
-                sells.loc[index_s, 'Uncovered Quantity'] = sells.loc[index_s, 'Quantity'] + covered_quantity
+                sells.loc[index_s, 'Uncovered Quantity'] = (sells.loc[index_s, 'Quantity'] if sell['Type'] == 'Long' else -sells.loc[index_s, 'Quantity']) + covered_quantity
                 covered_fraction = covered_quantity / -sells.loc[index_s, 'Quantity']
                 sells.loc[index_s, algo_name] = ((sells.loc[index_s, 'Proceeds'] * covered_fraction) - sells.loc[index_s, 'Covered Price'])
 
