@@ -177,7 +177,7 @@ def pair_buy_sell(trades):
             # For each sell order, find enough buy orders to cover it
             for index_s, sell in sells.iterrows():
                 # Find enough buy orders to cover the sell order
-                buys_to_cover = buys[(buys['Date/Time'] < sell['Date/Time']) & (buys['Uncovered Quantity'] > 0)]
+                buys_to_cover = buys[(buys['Date/Time'] <= sell['Date/Time']) & (buys['Uncovered Quantity'] > 0)]
                 # Sort according to FIFO/LIFO (ascending/descending)
                 buys_to_cover = buys_to_cover.sort_values(by=['Date/Time'], ascending=use_fifo)
                 covered_quantity = 0
