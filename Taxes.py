@@ -163,7 +163,7 @@ def pair_buy_sell(trades):
     per_symbol = trades.groupby('Symbol')
     buys_all = pd.DataFrame()
     sells_all = pd.DataFrame()
-    sell_buy_pairs = pd.DataFrame(columns=['Buy Transaction', 'Sell Transaction', 'Symbol', 'Quantity', 'Buy Time', 'Buy Price', 'Sell Time', 'Sell Price', 'Buy Cost', 'Sell Proceeds', 'Ratio'])
+    sell_buy_pairs = pd.DataFrame(columns=['Buy Transaction', 'Sell Transaction', 'Symbol', 'Quantity', 'Buy Time', 'Buy Price', 'Sell Time', 'Sell Price', 'Buy Cost', 'Sell Proceeds', 'Ratio', 'Type'])
     for symbol, group in per_symbol:
         group['Covered Price'] = 0.0
         group['FIFO P/L'] = 0.0
@@ -184,6 +184,8 @@ def pair_buy_sell(trades):
                 covered_cost = 0
                 # If there are enough buy orders to cover the sell order
                 for index_b, buy in buys_to_cover.iterrows():
+                    if buy['Type'] != sell['Type']:
+                        continue
                     # Reduce the quantity of the buy order by the quantity of the sell order
                     quantity = min(buy['Uncovered Quantity'], -sell['Uncovered Quantity'])
                     if quantity != 0:
@@ -195,12 +197,15 @@ def pair_buy_sell(trades):
                         covered_quantity += quantity
                         covered_cost += quantity * buy['T. Price']
                         # Add the pair to the DataFrame, indexing by hashes of the buy and sell transactions
+                        open = buy if buy['Type'] == 'Long' else sell
+                        close = sell if buy['Type'] == 'Long' else buy
                         data = {'Sell Transaction': index_s, 'Buy Transaction': index_b, 'Symbol': symbol, 'Currency': buy['Currency'],
                                 'Quantity': quantity, 'Buy Time': buy['Date/Time'], 'Sell Time': sell['Date/Time'],
-                                'Buy Price': buy['T. Price'], 'Sell Price': sell['T. Price'], 
-                                'Buy Cost': buy['T. Price'] - (buy['Comm/Fee'] / buy['Quantity']), 
-                                'Sell Proceeds': sell['T. Price'] - (sell['Comm/Fee'] / sell['Quantity']), 
-                                'Ratio': sell['T. Price']/buy['T. Price'] }
+                                'Buy Price': open['T. Price'], 
+                                'Sell Price': close['T. Price'], 
+                                'Buy Cost': open['T. Price'] - (open['Comm/Fee'] / open['Quantity']), 
+                                'Sell Proceeds': close['T. Price'] - (close['Comm/Fee'] / close['Quantity']), 
+                                'Ratio': close['T. Price']/open['T. Price'], 'Type': close['Type']}
                         sell_buy_pairs = pd.concat([sell_buy_pairs, pd.DataFrame([data])], ignore_index=True)
                         
                 # Update the sell order with the covered price and quantity
