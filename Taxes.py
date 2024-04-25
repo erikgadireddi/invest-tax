@@ -59,8 +59,8 @@ def convert_trade_columns(df):
     df['Type'] = df.apply(lambda row: 'Long' if (row['Action'] == 'Open' and row['Quantity'] > 0) or (row['Action'] == 'Close' and row['Quantity'] < 0) else 'Short', axis=1)
     return df
 
-def adjust_for_splits(trades, tickers_dir):
-    trades['Adjusted Quantity'] = trades['Quantity']
+def add_split_data(trades, tickers_dir):
+    trades['Split Ratio'] = 1
     if tickers_dir is not None:
         for symbol, group in trades.groupby('Symbol'):
             filename = tickers_dir + '/' + symbol + '_data.csv'
@@ -75,9 +75,9 @@ def adjust_for_splits(trades, tickers_dir):
                             ratio = ticker.loc[pd.to_datetime(row['Date/Time']).date(), 'Adj Ratio']
                         except KeyError:
                             print('No split data for', symbol, 'on', pd.to_datetime(row['Date/Time']).date())
-                        trades.loc[index, 'Adjusted Quantity'] = row['Quantity'] * ratio
+                        trades.loc[index, 'Split Ratio'] = ratio
                         if ratio != 1:
-                            print('Adjusted quantity for', symbol, 'from', row['Quantity'], 'to', trades.loc[index, 'Adjusted Quantity'], ', ratio:', ratio)
+                            print('Adjusted quantity for', symbol, 'from', row['Quantity'], 'to',  row['Quantity'] * ratio, ', ratio:', ratio)
                     
                 except Exception as e:
                     print('Error reading', filename, ':', e)
@@ -141,7 +141,10 @@ def load_trades(directory, existing_trades=None, tickers_dir=None):
     if (count != len(df)):
         print('Duplicates found and removed:', count - len(df))
 
-    adjust_for_splits(df, tickers_dir)
+    add_split_data(df, tickers_dir)
+    df['Quantity'] = df['Quantity'] * df['Split Ratio']
+    df['T. Price'] = df['T. Price'] / df['Split Ratio']
+    
     return df
 
 def get_adjusted_price(ticker, date):
