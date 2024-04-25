@@ -4,6 +4,7 @@ import glob
 import argparse
 import re
 import hashlib
+import os
 
 # Used to hash entire rows since there is no unique identifier for each row
 def hash_row(row):
@@ -58,8 +59,31 @@ def convert_trade_columns(df):
     df['Type'] = df.apply(lambda row: 'Long' if (row['Action'] == 'Open' and row['Quantity'] > 0) or (row['Action'] == 'Close' and row['Quantity'] < 0) else 'Short', axis=1)
     return df
 
+def adjust_for_splits(trades, tickers_dir):
+    trades['Adjusted Quantity'] = trades['Quantity']
+    if tickers_dir is not None:
+        for symbol, group in trades.groupby('Symbol'):
+            filename = tickers_dir + '/' + symbol + '_data.csv'
+            if os.path.exists(filename):
+                try:
+                    ticker = pd.read_csv(tickers_dir + '/' + symbol + '_data.csv')
+                    ticker['Date'] = pd.to_datetime(ticker['Date'], format='%Y-%m-%d').dt.date
+                    ticker.set_index('Date', inplace=True)
+                    for index, row in group.iterrows():
+                        ratio = 1
+                        try:
+                            ratio = ticker.loc[pd.to_datetime(row['Date/Time']).date(), 'Adj Ratio']
+                        except KeyError:
+                            print('No split data for', symbol, 'on', pd.to_datetime(row['Date/Time']).date())
+                        trades.loc[index, 'Adjusted Quantity'] = row['Quantity'] * ratio
+                        if ratio != 1:
+                            print('Adjusted quantity for', symbol, 'from', row['Quantity'], 'to', trades.loc[index, 'Adjusted Quantity'], ', ratio:', ratio)
+                    
+                except Exception as e:
+                    print('Error reading', filename, ':', e)
+
 # Load Trades CSV as DataFrame
-def load_trades(directory, existing_trades=None):
+def load_trades(directory, existing_trades=None, tickers_dir=None):
     # Go over all 'Activity' exports that contain all data and extract only the 'Trades' part
     data = None
     for f in glob.glob(directory + '/U*_*_*.csv'):
@@ -77,9 +101,7 @@ def load_trades(directory, existing_trades=None):
                 data = data[(data['Trades'] == 'Trades') & (data['Header'] == 'Data') & (data['DataDiscriminator'] == 'Order') & (data['Asset Category'] == 'Stocks')]
         else:
             print('Skipping file:', f)
-    print(data)
     df = data
-
     # First line is the headers: Trades,Header,DataDiscriminator,Asset Category,Currency,Symbol,Date/Time,Quantity,T. Price,C. Price,Proceeds,Comm/Fee,Basis,Realized P/L,MTM P/L,Code
     # Column	Descriptions
     # Trades	The trade number.
@@ -119,6 +141,7 @@ def load_trades(directory, existing_trades=None):
     if (count != len(df)):
         print('Duplicates found and removed:', count - len(df))
 
+    adjust_for_splits(df, tickers_dir)
     return df
 
 def get_adjusted_price(ticker, date):
@@ -256,6 +279,7 @@ def main():
     # Add the arguments
     parser.add_argument('--settings-dir', type=str, required=True, help='Path to CurrencyRates.csv file')
     parser.add_argument('--import-trades-dir', type=str, help='Path to Trades CSV files')
+    parser.add_argument('--tickers-dir', type=str, help='Path to load historic ticker data to adjust prices for splits')
     parser.add_argument('--load-trades', type=str, help='Path to load processed trades file')
     parser.add_argument('--save-trades', type=str, help='Path to save processed trades file after import')
 #    parser.add_argument('--compute', action='store_true', help='Compute statistics')
@@ -273,13 +297,14 @@ def main():
     # Load data
     daily_rates = load_daily_rates(args.settings_dir)
     yearly_rates = load_yearly_rates(args.settings_dir)
+    trades = None
 
     if args.load_trades is not None:
         trades = pd.read_csv(args.load_trades)
         trades = convert_trade_columns(trades)
         trades.set_index('Hash', inplace=True)
     if args.import_trades_dir is not None:
-        trades = load_trades(args.import_trades_dir, trades)
+        trades = load_trades(args.import_trades_dir, trades, args.tickers_dir)
 
     # Pair buy and sell orders
     buys, sells, sell_buy_pairs = pair_buy_sell(trades)
@@ -304,9 +329,11 @@ def main():
         for year in trades['Year'].unique():
             for use_yearly_rates in [True, False]:
                 if use_yearly_rates:
-                    sell_buy_pairs['CZK Rate'] = sell_buy_pairs.apply(lambda row: yearly_rates.loc[row['Sell Time'].year, row['Currency']] if row['Sell Time'].year in yearly_rates.index else np.nan, axis=1)
+                    sell_buy_pairs['Buy CZK Rate'] = sell_buy_pairs.apply(lambda row: yearly_rates.loc[row['Buy Time'].year, row['Currency']] if row['Buy Time'].year in yearly_rates.index else np.nan, axis=1)
+                    sell_buy_pairs['Sell CZK Rate'] = sell_buy_pairs.apply(lambda row: yearly_rates.loc[row['Sell Time'].year, row['Currency']] if row['Sell Time'].year in yearly_rates.index else np.nan, axis=1)
                 else:
-                    sell_buy_pairs['CZK Rate'] = sell_buy_pairs.apply(lambda row: daily_rates.loc[pd.to_datetime(row['Sell Time'].date()), row['Currency']] if pd.to_datetime(row['Sell Time'].date()) in daily_rates.index else np.nan, axis=1)
+                    sell_buy_pairs['Buy CZK Rate'] = sell_buy_pairs.apply(lambda row: daily_rates.loc[pd.to_datetime(row['Buy Time'].date()), row['Currency']] if pd.to_datetime(row['Buy Time'].date()) in daily_rates.index else np.nan, axis=1)
+                    sell_buy_pairs['Sell CZK Rate'] = sell_buy_pairs.apply(lambda row: daily_rates.loc[pd.to_datetime(row['Sell Time'].date()), row['Currency']] if pd.to_datetime(row['Sell Time'].date()) in daily_rates.index else np.nan, axis=1)
                 sell_buy_pairs[sell_buy_pairs['Sell Time'].dt.year == year].round(3).to_csv(args.save_matched_trades + ".{0}.{1}.csv".format(year, 'yearly' if use_yearly_rates else 'daily'), index=False)
             unpaired_sells[unpaired_sells['Year'] == year].round(3).to_csv(args.save_matched_trades + ".{0}.unpaired.csv".format(year), index=False)
 
