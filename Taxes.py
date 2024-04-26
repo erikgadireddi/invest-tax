@@ -189,7 +189,7 @@ def pair_buy_sell(trades):
     per_symbol = trades.groupby('Symbol')
     buys_all = pd.DataFrame()
     sells_all = pd.DataFrame()
-    sell_buy_pairs = pd.DataFrame(columns=['Buy Transaction', 'Sell Transaction', 'Symbol', 'Quantity', 'Buy Time', 'Buy Price', 'Sell Time', 'Sell Price', 'Buy Cost', 'Sell Proceeds', 'Ratio', 'Type'])
+    sell_buy_pairs = pd.DataFrame(columns=['Buy Transaction', 'Sell Transaction', 'Symbol', 'Quantity', 'Buy Time', 'Buy Price', 'Sell Time', 'Sell Price', 'Buy Cost', 'Sell Proceeds', 'Ratio', 'Type', 'Taxable'])
     for symbol, group in per_symbol:
         group['Covered Price'] = 0.0
         group['FIFO P/L'] = 0.0
@@ -231,7 +231,8 @@ def pair_buy_sell(trades):
                                 'Sell Price': close['T. Price'], 
                                 'Buy Cost': open['T. Price'] - (open['Comm/Fee'] / open['Quantity']), 
                                 'Sell Proceeds': close['T. Price'] - (close['Comm/Fee'] / close['Quantity']), 
-                                'Ratio': close['T. Price']/open['T. Price'], 'Type': close['Type']}
+                                'Ratio': close['T. Price']/open['T. Price'], 'Type': close['Type'],
+                                'Taxable': 1 if (sell['Date/Time'] - buy['Date/Time']).days < 3*365 else 0}
                         sell_buy_pairs = pd.concat([sell_buy_pairs, pd.DataFrame([data])], ignore_index=True)
                         
                 # Update the sell order with the covered price and quantity
@@ -276,15 +277,17 @@ def print_statistics(trades, sells, year):
     print('Total commissions per currency:', commissions_raw)
 
 def add_czk_conversion(trade_pairs, rates, use_yearly_rates=True):
+    annotated_pairs = trade_pairs.copy()
     if use_yearly_rates:
-        trade_pairs['Buy CZK Rate'] = trade_pairs.apply(lambda row: rates.loc[row['Buy Time'].year, row['Currency']] if row['Buy Time'].year in rates.index else np.nan, axis=1)
-        trade_pairs['Sell CZK Rate'] = trade_pairs.apply(lambda row: rates.loc[row['Sell Time'].year, row['Currency']] if row['Sell Time'].year in rates.index else np.nan, axis=1)
+        annotated_pairs['Buy CZK Rate'] = annotated_pairs.apply(lambda row: rates.loc[row['Buy Time'].year, row['Currency']] if row['Buy Time'].year in rates.index else np.nan, axis=1)
+        annotated_pairs['Sell CZK Rate'] = annotated_pairs.apply(lambda row: rates.loc[row['Sell Time'].year, row['Currency']] if row['Sell Time'].year in rates.index else np.nan, axis=1)
     else:
-        trade_pairs['Buy CZK Rate'] = trade_pairs.apply(lambda row: rates.loc[pd.to_datetime(row['Buy Time'].date()), row['Currency']] if pd.to_datetime(row['Buy Time'].date()) in rates.index else np.nan, axis=1)
-        trade_pairs['Sell CZK Rate'] = trade_pairs.apply(lambda row: rates.loc[pd.to_datetime(row['Sell Time'].date()), row['Currency']] if pd.to_datetime(row['Sell Time'].date()) in rates.index else np.nan, axis=1)
-    trade_pairs['CZK Cost'] = trade_pairs['Buy Cost'] * trade_pairs['Quantity'] * trade_pairs['Buy CZK Rate']
-    trade_pairs['CZK Proceeds'] = trade_pairs['Sell Proceeds'] * trade_pairs['Quantity'] * trade_pairs['Sell CZK Rate']
-    trade_pairs['CZK Revenue'] = trade_pairs['CZK Proceeds'] - trade_pairs['CZK Cost']
+        annotated_pairs['Buy CZK Rate'] = annotated_pairs.apply(lambda row: rates.loc[pd.to_datetime(row['Buy Time'].date()), row['Currency']] if pd.to_datetime(row['Buy Time'].date()) in rates.index else np.nan, axis=1)
+        annotated_pairs['Sell CZK Rate'] = annotated_pairs.apply(lambda row: rates.loc[pd.to_datetime(row['Sell Time'].date()), row['Currency']] if pd.to_datetime(row['Sell Time'].date()) in rates.index else np.nan, axis=1)
+    annotated_pairs['CZK Cost'] = annotated_pairs['Buy Cost'] * annotated_pairs['Quantity'] * annotated_pairs['Buy CZK Rate']
+    annotated_pairs['CZK Proceeds'] = annotated_pairs['Sell Proceeds'] * annotated_pairs['Quantity'] * annotated_pairs['Sell CZK Rate']
+    annotated_pairs['CZK Revenue'] = annotated_pairs['CZK Proceeds'] - annotated_pairs['CZK Cost']
+    return annotated_pairs
     
 
 def main():
@@ -341,11 +344,15 @@ def main():
         unpaired_buys.sort_values(by=sort_columns).to_csv(args.save_trade_overview_dir + '/buys.unpaired.csv', index=False)
     if args.save_matched_trades:
         sell_buy_pairs.round(3).to_csv(args.save_matched_trades, index=False)
-        for year in trades['Year'].unique():
-            add_czk_conversion(sell_buy_pairs, yearly_rates, True)
-            sell_buy_pairs[sell_buy_pairs['Sell Time'].dt.year == year].round(3).to_csv(args.save_matched_trades + ".{0}.{1}.csv".format(year, 'yearly'), index=False)
-            add_czk_conversion(sell_buy_pairs, daily_rates, False)
-            sell_buy_pairs[sell_buy_pairs['Sell Time'].dt.year == year].round(3).to_csv(args.save_matched_trades + ".{0}.{1}.csv".format(year, 'daily'), index=False)
+        yearly_pairs = add_czk_conversion(sell_buy_pairs, yearly_rates, True)
+        daily_pairs = add_czk_conversion(sell_buy_pairs, daily_rates, False)
+        for year in sorted(trades['Year'].unique()):
+            for pairs in [yearly_pairs, daily_pairs]:
+                filtered_pairs = pairs[(pairs['Sell Time'].dt.year == year) & (pairs['Taxable'] > 0)]  
+                pairing_type = 'yearly' if pairs is yearly_pairs else 'daily'
+                print('Pairing for year', year, 'using', pairing_type, 'rates in CZK: Proceeds', filtered_pairs['CZK Proceeds'].sum().round(0), ', Cost',
+                    filtered_pairs['CZK Cost'].sum().round(0), ', Revenue ', filtered_pairs['CZK Revenue'].sum().round(0))
+                filtered_pairs[filtered_pairs['Sell Time'].dt.year == year].round(3).to_csv(args.save_matched_trades + ".{0}.{1}.csv".format(year, pairing_type), index=False)
             unpaired_sells[unpaired_sells['Year'] == year].round(3).to_csv(args.save_matched_trades + ".{0}.unpaired.csv".format(year), index=False)
 
     # if args.compute:
