@@ -178,7 +178,7 @@ def get_statistics_per_currency(trades, sells, year):
 
     return purchases, sales, commissions, profit_loss_average, profit_loss_fifo, profit_loss_lifo
 
-def pair_buy_sell(trades):
+def pair_buy_sell(trades, use_lifo=True):
     # Group all trades by Symbol into a new DataFrame
     # For each sell order (negative Proceeds), find enough corresponding buy orders (positive Proceeds) with the same Symbol to cover the sell order
     # Buy orders must be before the sell orders in time (Date/Time) and must have enough Quantity to cover the sell order
@@ -192,25 +192,31 @@ def pair_buy_sell(trades):
     sell_buy_pairs = pd.DataFrame(columns=['Buy Transaction', 'Sell Transaction', 'Symbol', 'Quantity', 'Buy Time', 'Buy Price', 'Sell Time', 'Sell Price', 'Buy Cost', 'Sell Proceeds', 'Ratio', 'Type', 'Taxable'])
     for symbol, group in per_symbol:
         group['Covered Price'] = 0.0
-        group['FIFO P/L'] = 0.0
-        group['LIFO P/L'] = 0.0
         # Find sell orders
         sells = group[group['Action'] == 'Close']
-        for use_fifo in [True]:
-            # Find buy orders. We'll use the quantity column to determine which buy orders were used to cover the sell orders
-            buys = group[group['Action'] == 'Open']
-            algo_name = 'FIFO P/L' if use_fifo else 'LIFO P/L'
-            # For each sell order, find enough buy orders to cover it
-            for index_s, sell in sells.iterrows():
-                # Find enough buy orders to cover the sell order
-                buys_to_cover = buys[(buys['Date/Time'] <= sell['Date/Time']) & (buys['Uncovered Quantity'] > 0)]
-                # Sort according to FIFO/LIFO (ascending/descending)
-                buys_to_cover = buys_to_cover.sort_values(by=['Date/Time'], ascending=use_fifo)
+        # Find buy orders. We'll use the quantity column to determine which buy orders were used to cover the sell orders
+        buys = group[group['Action'] == 'Open']
+        # For each sell order, find enough buy orders to cover it
+        for index_s, sell in sells.iterrows():
+            # Find enough buy orders to cover the sell order
+            buys_to_cover = buys[(buys['Date/Time'] <= sell['Date/Time']) & (buys['Uncovered Quantity'] > 0)]
+            
+            
+            if use_lifo:
+                # LIFO should prefer oldest not taxable transactions, then youngest taxable transactions
+                commands = [('FIFO', 'IgnoreTaxable'), ('LIFO', 'All')]
+            else:
+                # FIFO is easy, just sort by Date/Time
+                commands = [('FIFO', 'All')]
+
+            for strategy, match in commands:
+                buys_to_cover = buys_to_cover.sort_values(by=['Date/Time'], ascending=strategy == 'FIFO')
                 covered_quantity = 0
                 covered_cost = 0
+
                 # If there are enough buy orders to cover the sell order
-                for index_b, buy in buys_to_cover.iterrows():
-                    if buy['Type'] != sell['Type']:
+                for index_b, buy in buys_to_cover[buys_to_cover['Type'] == sell['Type']].iterrows():
+                    if match == 'IgnoreTaxable' and (sell['Date/Time'] - buy['Date/Time']).days < 3*365:
                         continue
                     # Reduce the quantity of the buy order by the quantity of the sell order
                     quantity = min(buy['Uncovered Quantity'], -sell['Uncovered Quantity'])
@@ -239,8 +245,8 @@ def pair_buy_sell(trades):
                 sells.loc[index_s, 'Covered Price'] = covered_cost
                 sells.loc[index_s, 'Covered Quantity'] = covered_quantity
                 sells.loc[index_s, 'Uncovered Quantity'] = (sells.loc[index_s, 'Quantity'] if sell['Type'] == 'Long' else -sells.loc[index_s, 'Quantity']) + covered_quantity
-                covered_fraction = covered_quantity / -sells.loc[index_s, 'Quantity']
-                sells.loc[index_s, algo_name] = ((sells.loc[index_s, 'Proceeds'] * covered_fraction) - sells.loc[index_s, 'Covered Price'])
+                # covered_fraction = covered_quantity / -sells.loc[index_s, 'Quantity']
+                # sells.loc[index_s, algo_name] = ((sells.loc[index_s, 'Proceeds'] * covered_fraction) - sells.loc[index_s, 'Covered Price'])
 
         buys_all = pd.concat([buys_all, buys])
         sells_all = pd.concat([sells_all, sells])
