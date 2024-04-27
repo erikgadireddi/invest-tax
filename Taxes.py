@@ -328,8 +328,8 @@ def add_czk_conversion(trade_pairs, rates, use_yearly_rates=True):
         annotated_pairs['Buy CZK Rate'] = annotated_pairs.apply(lambda row: rates.loc[row['Buy Time'].year, row['Currency']] if row['Buy Time'].year in rates.index else np.nan, axis=1)
         annotated_pairs['Sell CZK Rate'] = annotated_pairs.apply(lambda row: rates.loc[row['Sell Time'].year, row['Currency']] if row['Sell Time'].year in rates.index else np.nan, axis=1)
     else:
-        annotated_pairs['Buy CZK Rate'] = annotated_pairs.apply(lambda row: rates.loc[pd.to_datetime(row['Buy Time'].date()), row['Currency']] if pd.to_datetime(row['Buy Time'].date()) in rates.index else np.nan, axis=1)
-        annotated_pairs['Sell CZK Rate'] = annotated_pairs.apply(lambda row: rates.loc[pd.to_datetime(row['Sell Time'].date()), row['Currency']] if pd.to_datetime(row['Sell Time'].date()) in rates.index else np.nan, axis=1)
+        annotated_pairs['Buy CZK Rate'] = annotated_pairs.apply(lambda row: rates.loc[rates.index[rates.index <= pd.to_datetime(row['Buy Time'].date())].max(), row['Currency']], axis=1)
+        annotated_pairs['Sell CZK Rate'] = annotated_pairs.apply(lambda row: rates.loc[rates.index[rates.index <= pd.to_datetime(row['Sell Time'].date())].max(), row['Currency']], axis=1)
     annotated_pairs['CZK Cost'] = annotated_pairs['Cost'] *  annotated_pairs['Buy CZK Rate']
     annotated_pairs['CZK Proceeds'] = annotated_pairs['Proceeds'] *  annotated_pairs['Sell CZK Rate']
     annotated_pairs['CZK Revenue'] = annotated_pairs['CZK Proceeds'] + annotated_pairs['CZK Cost']
