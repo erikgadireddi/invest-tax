@@ -236,9 +236,6 @@ def pair_buy_sell(trades, pairs, strategy):
             if sell['Uncovered Quantity'] == 0:
                 continue
             
-            # if sell_buy_pairs[sell_buy_pairs['Sell Transaction'] == index_s]['Quantity'].sum() == -sell['Quantity'] if sell['Type'] == 'Long' else sell['Quantity']:
-            #    continue
-            
             if strategy == 'LIFO':
                 # LIFO should prefer oldest not taxable transactions, then youngest taxable transactions
                 commands = [('FIFO', 'IgnoreTaxable'), ('LIFO', 'All')]
@@ -276,6 +273,8 @@ def pair_buy_sell(trades, pairs, strategy):
                                 'Sell Price': close['T. Price'], 
                                 'Buy Cost': open['T. Price'] - (open['Comm/Fee'] / open['Quantity']), 
                                 'Sell Proceeds': close['T. Price'] - (close['Comm/Fee'] / close['Quantity']), 
+                                'Cost': (open['Proceeds'] + open['Comm/Fee']) * quantity / open['Quantity'], 
+                                'Proceeds': -(close['Proceeds'] + close['Comm/Fee']) * quantity / close['Quantity'],
                                 'Ratio': close['T. Price']/open['T. Price'] if open['T. Price'] != 0 else 0, 'Type': close['Type'],
                                 'Taxable': 1 if (sell['Date/Time'] - buy['Date/Time']).days < 3*365 else 0}
                         pairs = pd.concat([pairs, pd.DataFrame([data])], ignore_index=True)
@@ -331,9 +330,9 @@ def add_czk_conversion(trade_pairs, rates, use_yearly_rates=True):
     else:
         annotated_pairs['Buy CZK Rate'] = annotated_pairs.apply(lambda row: rates.loc[pd.to_datetime(row['Buy Time'].date()), row['Currency']] if pd.to_datetime(row['Buy Time'].date()) in rates.index else np.nan, axis=1)
         annotated_pairs['Sell CZK Rate'] = annotated_pairs.apply(lambda row: rates.loc[pd.to_datetime(row['Sell Time'].date()), row['Currency']] if pd.to_datetime(row['Sell Time'].date()) in rates.index else np.nan, axis=1)
-    annotated_pairs['CZK Cost'] = annotated_pairs['Buy Cost'] * annotated_pairs['Quantity'] * annotated_pairs['Buy CZK Rate']
-    annotated_pairs['CZK Proceeds'] = annotated_pairs['Sell Proceeds'] * annotated_pairs['Quantity'] * annotated_pairs['Sell CZK Rate']
-    annotated_pairs['CZK Revenue'] = annotated_pairs['CZK Proceeds'] - annotated_pairs['CZK Cost']
+    annotated_pairs['CZK Cost'] = annotated_pairs['Cost'] *  annotated_pairs['Buy CZK Rate']
+    annotated_pairs['CZK Proceeds'] = annotated_pairs['Proceeds'] *  annotated_pairs['Sell CZK Rate']
+    annotated_pairs['CZK Revenue'] = annotated_pairs['CZK Proceeds'] + annotated_pairs['CZK Cost']
     return annotated_pairs
     
 
@@ -386,12 +385,12 @@ def main():
     if args.save_trades:
         trades.drop(['Covered Quantity', 'Uncovered Quantity'], axis=1, inplace=False).sort_values(by=sort_columns).to_csv(args.save_trades, index=True)
     if args.save_trade_overview_dir:
-        sells.sort_values(by=sort_columns).to_csv(args.save_trade_overview_dir + '/sells.csv', index=False)
-        paired_sells.sort_values(by=sort_columns).to_csv(args.save_trade_overview_dir + '/sells.paired.csv', index=False)
-        unpaired_sells.sort_values(by=sort_columns).to_csv(args.save_trade_overview_dir + '/sells.unpaired.csv', index=False)
-        buys.sort_values(by=sort_columns).to_csv(args.save_trade_overview_dir + '/buys.csv', index=False)
-        paired_buys.sort_values(by=sort_columns).to_csv(args.save_trade_overview_dir + '/buys.paired.csv', index=False)
-        unpaired_buys.sort_values(by=sort_columns).to_csv(args.save_trade_overview_dir + '/buys.unpaired.csv', index=False)
+        sells.round(3).sort_values(by=sort_columns).to_csv(args.save_trade_overview_dir + '/sells.csv', index=False)
+        paired_sells.round(3).sort_values(by=sort_columns).to_csv(args.save_trade_overview_dir + '/sells.paired.csv', index=False)
+        unpaired_sells.round(3).sort_values(by=sort_columns).to_csv(args.save_trade_overview_dir + '/sells.unpaired.csv', index=False)
+        buys.round(3).sort_values(by=sort_columns).to_csv(args.save_trade_overview_dir + '/buys.csv', index=False)
+        paired_buys.round(3).sort_values(by=sort_columns).to_csv(args.save_trade_overview_dir + '/buys.paired.csv', index=False)
+        unpaired_buys.round(3).sort_values(by=sort_columns).to_csv(args.save_trade_overview_dir + '/buys.unpaired.csv', index=False)
     if args.save_matched_trades:
         sell_buy_pairs.round(3).to_csv(args.save_matched_trades, index=False)
         yearly_pairs = add_czk_conversion(sell_buy_pairs, yearly_rates, True)
