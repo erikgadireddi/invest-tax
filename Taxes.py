@@ -46,6 +46,13 @@ def load_daily_rates(directory):
     df = adjust_rates_columns(df)
     return df
 
+def add_accumulated_positions(trades):
+    for symbol, group in trades.groupby('Symbol'):
+        accumulated = 0
+        for index, row in group.sort_values(by=['Date/Time']).iterrows():
+            accumulated += row['Quantity']
+            trades.loc[index, 'Accumulated Quantity'] = accumulated
+
 def convert_trade_columns(df):
     df['Date/Time'] = pd.to_datetime(df['Date/Time'])
     df['Quantity'] = pd.to_numeric(df['Quantity'], errors='coerce')
@@ -83,7 +90,7 @@ def add_split_data(trades, tickers_dir):
                     print('Error reading', filename, ':', e)
 
 # Load Trades CSV as DataFrame
-def load_trades(directory, existing_trades=None, tickers_dir=None):
+def import_trades(directory, existing_trades=None, tickers_dir=None):
     # Go over all 'Activity' exports that contain all data and extract only the 'Trades' part
     data = None
     for f in glob.glob(directory + '/U*_*_*.csv'):
@@ -131,6 +138,7 @@ def load_trades(directory, existing_trades=None, tickers_dir=None):
     # Set up the hash column as index
     df['Hash'] = df.apply(hash_row, axis=1)
     df.set_index('Hash', inplace=True)
+    add_accumulated_positions(df)
 
     df = pd.concat([existing_trades, df])
     # Order by Date/Time
@@ -178,18 +186,45 @@ def get_statistics_per_currency(trades, sells, year):
 
     return purchases, sales, commissions, profit_loss_average, profit_loss_fifo, profit_loss_lifo
 
-def pair_buy_sell(trades, use_lifo=False):
+def load_buy_sell_pairs(filename):
+    pairs = pd.read_csv(filename)
+    # Convert columns to correct types
+    pairs['Buy Time'] = pd.to_datetime(pairs['Buy Time'])
+    pairs['Sell Time'] = pd.to_datetime(pairs['Sell Time'])
+    pairs['Quantity'] = pd.to_numeric(pairs['Quantity'], errors='coerce')
+    pairs['Buy Price'] = pd.to_numeric(pairs['Buy Price'], errors='coerce')
+    pairs['Sell Price'] = pd.to_numeric(pairs['Sell Price'], errors='coerce')
+    pairs['Buy Cost'] = pd.to_numeric(pairs['Buy Cost'], errors='coerce')
+    pairs['Sell Proceeds'] = pd.to_numeric(pairs['Sell Proceeds'], errors='coerce')
+    pairs['Ratio'] = pd.to_numeric(pairs['Ratio'], errors='coerce')
+    pairs['Taxable'] = pd.to_numeric(pairs['Taxable'], errors='coerce')
+    return pairs
+    
+def fill_trades_covered_quantity(trades, sell_buy_pairs):
+    trades['Covered Quantity'] = 0.0
+    trades['Uncovered Quantity'] = trades.apply(lambda row: row['Quantity'] if row['Type'] == 'Long' else -row['Quantity'], axis=1)
+    if sell_buy_pairs is not None:
+        for index, row in sell_buy_pairs.iterrows():
+            sell_index = row['Sell Transaction']
+            buy_index = row['Buy Transaction']
+            quantity = row['Quantity']
+            trades.loc[buy_index, 'Covered Quantity'] += quantity
+            trades.loc[buy_index, 'Uncovered Quantity'] -= quantity
+            trades.loc[sell_index, 'Covered Quantity'] += quantity
+            trades.loc[sell_index, 'Uncovered Quantity'] += quantity
+    return trades
+    
+def pair_buy_sell(trades, pairs, strategy):
     # Group all trades by Symbol into a new DataFrame
     # For each sell order (negative Proceeds), find enough corresponding buy orders (positive Proceeds) with the same Symbol to cover the sell order
     # Buy orders must be before the sell orders in time (Date/Time) and must have enough Quantity to cover the sell order
     # From the buy orders, compute the average price (T. Price) for the amount to cover the sell order and add it to the sell order as 'Covered Price'
     # If a sell order is not covered by any buy orders, it is ignored
-    trades['Covered Quantity'] = 0.0
-    trades['Uncovered Quantity'] = trades.apply(lambda row: row['Quantity'] if row['Type'] == 'Long' else -row['Quantity'], axis=1)
+    trades = fill_trades_covered_quantity(trades, pairs)
+    # trades.round(3).to_csv('paired.order.quantities.csv')
     per_symbol = trades.groupby('Symbol')
-    buys_all = pd.DataFrame()
-    sells_all = pd.DataFrame()
-    sell_buy_pairs = pd.DataFrame(columns=['Buy Transaction', 'Sell Transaction', 'Symbol', 'Quantity', 'Buy Time', 'Buy Price', 'Sell Time', 'Sell Price', 'Buy Cost', 'Sell Proceeds', 'Ratio', 'Type', 'Taxable'])
+    if pairs is None:
+        pairs = pd.DataFrame(columns=['Buy Transaction', 'Sell Transaction', 'Symbol', 'Quantity', 'Buy Time', 'Buy Price', 'Sell Time', 'Sell Price', 'Buy Cost', 'Sell Proceeds', 'Ratio', 'Type', 'Taxable'])
     for symbol, group in per_symbol:
         # Find sell orders
         sells = group[group['Action'] == 'Close']
@@ -197,31 +232,43 @@ def pair_buy_sell(trades, use_lifo=False):
         buys = group[group['Action'] == 'Open']
         # For each sell order, find enough buy orders to cover it
         for index_s, sell in sells.iterrows():
-            # Find enough buy orders to cover the sell order
-            buys_to_cover = buys[(buys['Date/Time'] <= sell['Date/Time']) & (buys['Uncovered Quantity'] > 0)]
+            # If already paired, skip
+            if sell['Uncovered Quantity'] == 0:
+                continue
             
-            if use_lifo:
+            # if sell_buy_pairs[sell_buy_pairs['Sell Transaction'] == index_s]['Quantity'].sum() == -sell['Quantity'] if sell['Type'] == 'Long' else sell['Quantity']:
+            #    continue
+            
+            if strategy == 'LIFO':
                 # LIFO should prefer oldest not taxable transactions, then youngest taxable transactions
                 commands = [('FIFO', 'IgnoreTaxable'), ('LIFO', 'All')]
+            elif strategy == 'MaxLoss':
+                commands = [('LIFO', 'TaxableLoss'), ('FIFO', 'IgnoreTaxable'), ('LIFO', 'All')]
             else:
                 # FIFO is easy, just sort by Date/Time
                 commands = [('FIFO', 'All')]
 
+            # Find enough buy orders to cover the sell order
+            buys_to_cover = buys[(buys['Date/Time'] <= sell['Date/Time']) & (buys['Uncovered Quantity'] > 0)]
             for strategy, match in commands:
                 buys_to_cover = buys_to_cover.sort_values(by=['Date/Time'], ascending=strategy == 'FIFO')
 
                 # If there are enough buy orders to cover the sell order
                 for index_b, buy in buys_to_cover[buys_to_cover['Type'] == sell['Type']].iterrows():
-                    if match == 'IgnoreTaxable' and (sell['Date/Time'] - buy['Date/Time']).days < 3*365:
+                    taxable = (sell['Date/Time'] - buy['Date/Time']).days < 3*365
+                    if (match == 'IgnoreTaxable' and taxable) or (match == 'TaxableLoss' and not taxable):
                         continue
                     # Reduce the quantity of the buy order by the quantity of the sell order
                     quantity = min(buy['Uncovered Quantity'], -sell['Uncovered Quantity'])
                     if quantity != 0:
-                        # Add covered price to the sell order, it might not be all
-                        sell['Uncovered Quantity'] += quantity
                         # Treat short positions as reversed long positions
                         open = buy if buy['Type'] == 'Long' else sell
                         close = sell if buy['Type'] == 'Long' else buy
+                        # Add covered price to the sell order, it might not be all
+                        made_profit = (close['T. Price'] - open['T. Price']) > 0
+                        if made_profit and match == 'TaxableLoss':
+                            continue
+                        sell['Uncovered Quantity'] += quantity
                         # Add the pair to the DataFrame, indexing by hashes of the buy and sell transactions
                         data = {'Sell Transaction': index_s, 'Buy Transaction': index_b, 'Symbol': symbol, 'Currency': buy['Currency'],
                                 'Quantity': quantity, 'Buy Time': buy['Date/Time'], 'Sell Time': sell['Date/Time'],
@@ -229,21 +276,22 @@ def pair_buy_sell(trades, use_lifo=False):
                                 'Sell Price': close['T. Price'], 
                                 'Buy Cost': open['T. Price'] - (open['Comm/Fee'] / open['Quantity']), 
                                 'Sell Proceeds': close['T. Price'] - (close['Comm/Fee'] / close['Quantity']), 
-                                'Ratio': close['T. Price']/open['T. Price'], 'Type': close['Type'],
+                                'Ratio': close['T. Price']/open['T. Price'] if open['T. Price'] != 0 else 0, 'Type': close['Type'],
                                 'Taxable': 1 if (sell['Date/Time'] - buy['Date/Time']).days < 3*365 else 0}
-                        sell_buy_pairs = pd.concat([sell_buy_pairs, pd.DataFrame([data])], ignore_index=True)
+                        pairs = pd.concat([pairs, pd.DataFrame([data])], ignore_index=True)
 
                         # Update the original dataframes
                         buys.loc[index_b, 'Uncovered Quantity'] -= quantity
                         buys.loc[index_b, 'Covered Quantity'] += quantity
-                        sells.loc[index_s, 'Covered Quantity'] -= quantity
+                        sells.loc[index_s, 'Covered Quantity'] += quantity
                         sells.loc[index_s, 'Uncovered Quantity'] += quantity
-                        # covered_fraction = covered_quantity / -sells.loc[index_s, 'Quantity']
-                        # sells.loc[index_s, algo_name] = ((sells.loc[index_s, 'Proceeds'] * covered_fraction) - sells.loc[index_s, 'Covered Price'])
 
-        buys_all = pd.concat([buys_all, buys])
-        sells_all = pd.concat([sells_all, sells])
-    return buys_all, sells_all, sell_buy_pairs
+        # Propagate the changes back to the original DataFrame
+        trades.loc[sells.index, 'Uncovered Quantity'] = sells['Uncovered Quantity']
+        trades.loc[buys.index, 'Uncovered Quantity'] = buys['Uncovered Quantity']
+        trades.loc[sells.index, 'Covered Quantity'] = sells['Covered Quantity']
+        trades.loc[buys.index, 'Covered Quantity'] = buys['Covered Quantity']
+    return trades[trades['Action'] == 'Open'], trades[trades['Action'] == 'Close'], pairs
 
 def print_statistics(trades, sells, year):
     # Get statistics for last year
@@ -315,16 +363,19 @@ def main():
     daily_rates = load_daily_rates(args.settings_dir)
     yearly_rates = load_yearly_rates(args.settings_dir)
     trades = None
+    sell_buy_pairs = None
 
     if args.load_trades is not None:
         trades = pd.read_csv(args.load_trades)
         trades = convert_trade_columns(trades)
         trades.set_index('Hash', inplace=True)
     if args.import_trades_dir is not None:
-        trades = load_trades(args.import_trades_dir, trades, args.tickers_dir)
+        trades = import_trades(args.import_trades_dir, trades, args.tickers_dir)
+    if args.load_matched_trades is not None:
+        sell_buy_pairs = load_buy_sell_pairs(args.load_matched_trades)
 
     # Pair buy and sell orders
-    buys, sells, sell_buy_pairs = pair_buy_sell(trades)
+    buys, sells, sell_buy_pairs = pair_buy_sell(trades, sell_buy_pairs, 'MaxLoss')
     paired_sells = sells[sells['Uncovered Quantity'] == 0]
     unpaired_sells = sells[sells['Uncovered Quantity'] != 0]
     paired_buys = buys[buys['Uncovered Quantity'] == 0]
@@ -350,8 +401,9 @@ def main():
                 filtered_pairs = pairs[(pairs['Sell Time'].dt.year == year)]  
                 taxed_pairs = filtered_pairs[filtered_pairs['Taxable'] == 1]
                 pairing_type = 'yearly' if pairs is yearly_pairs else 'daily'
-                print('Pairing for year', year, 'using', pairing_type, 'rates in CZK: Proceeds', taxed_pairs['CZK Proceeds'].sum().round(0), ', Cost',
-                    taxed_pairs['CZK Cost'].sum().round(0), ', Revenue ', taxed_pairs['CZK Revenue'].sum().round(0))
+                print(f'Pairing for year {year} using {pairing_type} rates in CZK: Proceeds {taxed_pairs["CZK Proceeds"].sum().round(0)}, '
+                    f'Cost {taxed_pairs["CZK Cost"].sum().round(0)}, Revenue {taxed_pairs["CZK Revenue"].sum().round(0)}, '
+                    f'Untaxed pairs: {len(filtered_pairs) - len(taxed_pairs)}')
                 filtered_pairs[filtered_pairs['Sell Time'].dt.year == year].round(3).to_csv(args.save_matched_trades + ".{0}.{1}.csv".format(year, pairing_type), index=False)
             unpaired_sells[unpaired_sells['Year'] == year].round(3).to_csv(args.save_matched_trades + ".{0}.unpaired.csv".format(year), index=False)
 
