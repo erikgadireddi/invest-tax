@@ -374,7 +374,7 @@ def main():
         sell_buy_pairs = load_buy_sell_pairs(args.load_matched_trades)
 
     # Pair buy and sell orders
-    buys, sells, sell_buy_pairs = pair_buy_sell(trades, sell_buy_pairs, 'MaxLoss')
+    buys, sells, sell_buy_pairs = pair_buy_sell(trades, sell_buy_pairs, 'LIFO')
     paired_sells = sells[sells['Uncovered Quantity'] == 0]
     unpaired_sells = sells[sells['Uncovered Quantity'] != 0]
     paired_buys = buys[buys['Uncovered Quantity'] == 0]
@@ -397,7 +397,7 @@ def main():
         daily_pairs = add_czk_conversion(sell_buy_pairs, daily_rates, False)
         for year in sorted(trades['Year'].unique()):
             for pairs in [yearly_pairs, daily_pairs]:
-                filtered_pairs = pairs[(pairs['Sell Time'].dt.year == year)]  
+                filtered_pairs = pairs[(pairs['Sell Time'].dt.year == year)].sort_values(by=['Symbol','Sell Time', 'Buy Time'])
                 taxed_pairs = filtered_pairs[filtered_pairs['Taxable'] == 1]
                 pairing_type = 'yearly' if pairs is yearly_pairs else 'daily'
                 print(f'Pairing for year {year} using {pairing_type} rates in CZK: Proceeds {taxed_pairs["CZK Proceeds"].sum().round(0)}, '
