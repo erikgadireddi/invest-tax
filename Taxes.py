@@ -214,7 +214,7 @@ def fill_trades_covered_quantity(trades, sell_buy_pairs):
             trades.loc[sell_index, 'Uncovered Quantity'] += quantity
     return trades
     
-def pair_buy_sell(trades, pairs, strategy):
+def pair_buy_sell(trades, pairs, strategy, years=None):
     # Group all trades by Symbol into a new DataFrame
     # For each sell order (negative Proceeds), find enough corresponding buy orders (positive Proceeds) with the same Symbol to cover the sell order
     # Buy orders must be before the sell orders in time (Date/Time) and must have enough Quantity to cover the sell order
@@ -233,30 +233,45 @@ def pair_buy_sell(trades, pairs, strategy):
         # For each sell order, find enough buy orders to cover it
         for index_s, sell in sells.iterrows():
             # If already paired, skip
-            if sell['Uncovered Quantity'] == 0:
+            if sell['Uncovered Quantity'] == 0 or (years is not None and sell['Year'] not in years):
                 continue
             
-            if strategy == 'LIFO':
+            if strategy == 'lifo':
                 # LIFO should prefer oldest not taxable transactions, then youngest taxable transactions
                 commands = [('FIFO', 'IgnoreTaxable'), ('LIFO', 'All')]
-            elif strategy == 'MaxLoss':
+            elif strategy == 'average-cost':
+                # Pair like IBKR would compute P/L from average price of all buy orders
+                commands = [('AverageCost', 'All')]
+            elif strategy == 'max-loss':
                 commands = [('LIFO', 'TaxableLoss'), ('FIFO', 'IgnoreTaxable'), ('LIFO', 'All')]
-            else:
+            elif strategy == 'fifo':
                 # FIFO is easy, just sort by Date/Time
                 commands = [('FIFO', 'All')]
+            else:
+                print('Unknown strategy:', strategy)
+                return trades, pairs
 
             # Find enough buy orders to cover the sell order
             buys_to_cover = buys[(buys['Date/Time'] <= sell['Date/Time']) & (buys['Uncovered Quantity'] > 0)]
-            for strategy, match in commands:
-                buys_to_cover = buys_to_cover.sort_values(by=['Date/Time'], ascending=strategy == 'FIFO')
+            for matching, match in commands:
+                buys_to_cover = buys_to_cover.sort_values(by=['Date/Time'], ascending=matching == 'FIFO')
 
+                if matching == 'AverageCost':
+                    # We sell using IBKR average price, meaning we need to always pair the same fraction of each buy order
+                    total_uncovered = buys_to_cover['Uncovered Quantity'].sum()
+                    sell_fraction = sell['Uncovered Quantity'] / total_uncovered
                 # If there are enough buy orders to cover the sell order
                 for index_b, buy in buys_to_cover[buys_to_cover['Type'] == sell['Type']].iterrows():
                     taxable = (sell['Date/Time'] - buy['Date/Time']).days < 3*365
                     if (match == 'IgnoreTaxable' and taxable) or (match == 'TaxableLoss' and not taxable):
                         continue
-                    # Reduce the quantity of the buy order by the quantity of the sell order
-                    quantity = min(buy['Uncovered Quantity'], -sell['Uncovered Quantity'])
+                    
+                    # Determine the maximum quantity available to cover the sell order
+                    if matching == 'AverageCost':
+                        quantity = min(buy['Uncovered Quantity'], -sell['Uncovered Quantity'] * sell_fraction) # Proportional to the total uncovered quantity
+                    else:
+                        quantity = min(buy['Uncovered Quantity'], -sell['Uncovered Quantity'])
+                    
                     if quantity != 0:
                         # Treat short positions as reversed long positions
                         open = buy if buy['Type'] == 'Long' else sell
@@ -346,6 +361,8 @@ def main():
     parser.add_argument('--tickers-dir', type=str, help='Path to load historic ticker data to adjust prices for splits')
     parser.add_argument('--load-trades', type=str, help='Path to load processed trades file')
     parser.add_argument('--save-trades', type=str, help='Path to save processed trades file after import')
+    parser.add_argument('--process-years', type=str, help='List of years to process, separated by commas. If not specified, all years are processed.')
+    parser.add_argument('--strategy', type=str, default='fifo', help='Strategy to use for pairing buy and sell orders. Available: fifo, lifo, average-cost, max-loss')
 #    parser.add_argument('--compute', action='store_true', help='Compute statistics')
     parser.add_argument('--save-trade-overview-dir', type=str, help='Directory to output overviews of matched trades')
     parser.add_argument('--load-matched-trades', type=str, help='Paired trades input to load')
@@ -363,6 +380,7 @@ def main():
     yearly_rates = load_yearly_rates(args.settings_dir)
     trades = None
     sell_buy_pairs = None
+    years = None
 
     if args.load_trades is not None:
         trades = pd.read_csv(args.load_trades)
@@ -372,9 +390,11 @@ def main():
         trades = import_trades(args.import_trades_dir, trades, args.tickers_dir)
     if args.load_matched_trades is not None:
         sell_buy_pairs = load_buy_sell_pairs(args.load_matched_trades)
+    if args.process_years is not None:
+        years = [int(x) for x in args.process_years.split(',')]
 
     # Pair buy and sell orders
-    buys, sells, sell_buy_pairs = pair_buy_sell(trades, sell_buy_pairs, 'LIFO')
+    buys, sells, sell_buy_pairs = pair_buy_sell(trades, sell_buy_pairs, args.strategy, years)
     paired_sells = sells[sells['Uncovered Quantity'] == 0]
     unpaired_sells = sells[sells['Uncovered Quantity'] != 0]
     paired_buys = buys[buys['Uncovered Quantity'] == 0]
