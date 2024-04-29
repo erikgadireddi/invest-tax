@@ -5,6 +5,8 @@ import argparse
 import re
 import hashlib
 import os
+import json
+import sys
 
 # Used to hash entire rows since there is no unique identifier for each row
 def hash_row(row):
@@ -364,6 +366,16 @@ def add_czk_conversion(trade_pairs, rates, use_yearly_rates=True):
     
 
 def main():
+    # Load command-line arguments from commandline.json if exists
+    if os.path.exists('.vscode/commandline.json'):
+        with open('.vscode/commandline.json') as f:
+            data = json.load(f)
+            # Use argparse to parse the arguments
+            sys.argv = ['Taxes.py']
+            for key, value in data.items():
+                sys.argv.append('--' + key)
+                sys.argv.append(value)
+    
     # Process command-line arguments
     parser = argparse.ArgumentParser(description='Process command-line arguments')
 
@@ -376,7 +388,6 @@ def main():
     parser.add_argument('--process-years', type=str, help='List of years to process, separated by commas. If not specified, all years are processed.')
     parser.add_argument('--preserve-years', type=str, help='List of years to keep unchanged, separated by commas. If not specified, all years are preserved.')
     parser.add_argument('--strategy', type=str, default='fifo', help='Strategy to use for pairing buy and sell orders. Available: fifo, lifo, average-cost, max-loss. max-profit')
-#    parser.add_argument('--compute', action='store_true', help='Compute statistics')
     parser.add_argument('--save-trade-overview-dir', type=str, help='Directory to output overviews of matched trades')
     parser.add_argument('--load-matched-trades', type=str, help='Paired trades input to load')
     parser.add_argument('--save-matched-trades', type=str, help='Save updated paired trades')
@@ -441,14 +452,6 @@ def main():
                     f'Untaxed pairs: {len(filtered_pairs) - len(taxed_pairs)}')
                 filtered_pairs[filtered_pairs['Sell Time'].dt.year == year].round(3).to_csv(args.save_matched_trades + ".{0}.{1}.csv".format(year, pairing_type), index=False)
             unpaired_sells[unpaired_sells['Year'] == year].round(3).to_csv(args.save_matched_trades + ".{0}.unpaired.csv".format(year), index=False)
-
-    # if args.compute:
-    #     # Get unique years from trades
-    #     years = trades['Year'].unique()
-    #     # Get statistics for last year
-    #     year = years.max()
-    #     print_statistics(trades, sells, year)
-
 
 if __name__ == "__main__":
     main()
