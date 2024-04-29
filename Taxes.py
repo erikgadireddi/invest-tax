@@ -248,7 +248,9 @@ def pair_buy_sell(trades, pairs, strategy, process_years=None, preserve_years=No
                 # Pair like IBKR would compute P/L from average price of all buy orders
                 commands = [('AverageCost', 'All')]
             elif strategy == 'max-loss':
-                commands = [('LIFO', 'TaxableLoss'), ('FIFO', 'IgnoreTaxable'), ('LIFO', 'All')]
+                commands = [('MaxProfit', 'IgnoreTaxable'), ('MaxLoss', 'All')]
+            elif strategy == 'max-profit':
+                commands = [('MaxLose', 'IgnoreTaxable'), ('MaxProfit', 'All')]
             elif strategy == 'fifo':
                 # FIFO is easy, just sort by Date/Time
                 commands = [('FIFO', 'All')]
@@ -256,11 +258,15 @@ def pair_buy_sell(trades, pairs, strategy, process_years=None, preserve_years=No
                 print('Unknown strategy:', strategy)
                 return trades, pairs
 
-            # Find enough buy orders to cover the sell order
-            buys_to_cover = buys[(buys['Date/Time'] <= sell['Date/Time']) & (buys['Uncovered Quantity'] > 0)]
             # We sell using IBKR average price, meaning we need to always pair the same fraction of each buy order
             for match_strategy, filter in commands:
-                buys_to_cover = buys_to_cover.sort_values(by=['Date/Time'], ascending=match_strategy == 'FIFO')
+                # Find enough buy orders to cover the sell order
+                buys_to_cover = buys[(buys['Date/Time'] <= sell['Date/Time']) & (buys['Uncovered Quantity'] > 0)]
+                if match_strategy == 'MaxLoss' or match_strategy == 'MaxProfit':
+                    buys_to_cover = buys_to_cover.sort_values(by=['T. Price'], ascending=match_strategy == 'MaxProfit')
+                else:
+                    buys_to_cover = buys_to_cover.sort_values(by=['Date/Time'], ascending=match_strategy == 'FIFO')
+                    
                 if match_strategy == 'AverageCost':
                     total_uncovered = buys_to_cover['Uncovered Quantity'].sum()
                     sell_fraction = -sell['Uncovered Quantity'] / total_uncovered            
@@ -311,7 +317,7 @@ def pair_buy_sell(trades, pairs, strategy, process_years=None, preserve_years=No
         trades.loc[sells.index, 'Covered Quantity'] = sells['Covered Quantity']
         trades.loc[buys.index, 'Covered Quantity'] = buys['Covered Quantity']
     pairs['Revenue'] = pairs['Proceeds'] + pairs['Cost']
-    return trades[trades['Action'] == 'Open'], trades[trades['Action'] == 'Close'], pairs
+    return trades[trades['Action'] == 'Open'], trades[trades['Action'] == 'Close'], pairs.sort_values(by=['Symbol','Sell Time', 'Buy Time'])
 
 def print_statistics(trades, sells, year):
     # Get statistics for last year
@@ -369,7 +375,7 @@ def main():
     parser.add_argument('--save-trades', type=str, help='Path to save processed trades file after import')
     parser.add_argument('--process-years', type=str, help='List of years to process, separated by commas. If not specified, all years are processed.')
     parser.add_argument('--preserve-years', type=str, help='List of years to keep unchanged, separated by commas. If not specified, all years are preserved.')
-    parser.add_argument('--strategy', type=str, default='fifo', help='Strategy to use for pairing buy and sell orders. Available: fifo, lifo, average-cost, max-loss')
+    parser.add_argument('--strategy', type=str, default='fifo', help='Strategy to use for pairing buy and sell orders. Available: fifo, lifo, average-cost, max-loss. max-profit')
 #    parser.add_argument('--compute', action='store_true', help='Compute statistics')
     parser.add_argument('--save-trade-overview-dir', type=str, help='Directory to output overviews of matched trades')
     parser.add_argument('--load-matched-trades', type=str, help='Paired trades input to load')
