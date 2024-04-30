@@ -24,6 +24,8 @@ def import_trades(directory, tickers_dir=None):
     return merged    
 
 def main():
+    # st.header('Taxonomy Matchmaker')
+    st.subheader('Import Trades From IBKR Activity Statements')
     # Load command-line arguments from commandline.json if exists
     if os.path.exists('settings.json'):
         with open('settings.json') as f:
