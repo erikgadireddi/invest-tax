@@ -133,7 +133,7 @@ def import_activity_statement(file):
     # st.write('Imported', len(df), 'rows')
     return df
 
-def import_all_statements(directory, existing_data=None, tickers_dir=None):
+def import_all_statements(directory, tickers_dir=None):
     # Go over all 'Activity' exports that contain all data and extract only the 'Trades' part
     data = None
     for f in glob.glob(directory + '/U*_*_*.csv'):
@@ -142,10 +142,13 @@ def import_all_statements(directory, existing_data=None, tickers_dir=None):
             # Read the file 
             with open(f, 'r') as file:
                 data = import_activity_statement(file, data, tickers_dir)
+                yield data
         else:
             print('Skipping file:', f)
 
 def merge_trades(existing, new):
+    if existing is None:
+        return new
     count = len(existing) + len(new)
     merged = pd.concat([existing, new])
     merged = merged[~merged.index.duplicated(keep='first')]
@@ -162,11 +165,12 @@ def populate_extra_trade_columns(trades, tickers_dir=None):
     trades = trades.sort_values(by=['Date/Time'])
 
 # Load Trades CSV as DataFrame
-def import_trades(directory, existing_trades=None, tickers_dir=None):
-    df = import_all_statements(directory, existing_trades, tickers_dir)
-    df = merge_trades(existing_trades, df)
-    populate_extra_trade_columns(df, tickers_dir)
-    return df
+def import_trades(directory, tickers_dir=None):
+    merged = None
+    for trades in import_all_statements(directory, tickers_dir):
+        merged = merge_trades(merged, trades)
+    populate_extra_trade_columns(merged, tickers_dir)
+    return merged
 
 def get_adjusted_price(ticker, date):
     pass
