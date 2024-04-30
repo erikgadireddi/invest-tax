@@ -1,6 +1,6 @@
 {
-    "settings-dir": "invest-tax",
-    "tickers-dir": "",
+    "currency_rates_dir": "currency_rates",
+    "tickers_dir": "",
     "load-trades": "invest-private-data/trades.all.csv",
     "save-trades": "invest-private-data/trades.all.csv",
     "process-years": "2023",

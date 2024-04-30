@@ -24,17 +24,12 @@ def import_trades(directory, tickers_dir=None):
     return merged    
 
 def main():
+    st.set_page_config(page_title='Krutopřísný tradematcher', layout='centered')
     # st.header('Taxonomy Matchmaker')
     st.subheader('Import Trades From IBKR Activity Statements')
     # Load command-line arguments from commandline.json if exists
-    if os.path.exists('settings.json'):
-        with open('settings.json') as f:
-            data = json.load(f)
-            # Use argparse to parse the arguments
-            sys.argv = ['main.py']
-            for key, value in data.items():
-                sys.argv.append('--' + key)
-                sys.argv.append(value)
+    with open('settings.json') as f:
+        st.session_state['settings'] = json.load(f)
     
     # Process command-line arguments
     parser = argparse.ArgumentParser(description='Process command-line arguments')
@@ -74,14 +69,15 @@ def main():
             import_state.write(f'Merging :blue[{len(imported)}] trades...')
             trades = merge_trades(trades, imported)
             import_message = f'Imported :green[{len(trades) - trades_count}] trades.'
-            populate_extra_trade_columns(trades, args.tickers_dir)
+            populate_extra_trade_columns(trades, st.session_state['settings']['tickers_dir'])
             st.session_state.trades = trades
             import_state.write(import_message)
-    import_state.write(f'Total trades loaded: :blue[{loaded_count}] of which :green[{len(trades) - trades_count}] were new.')
+        import_state.write(f'Total trades loaded: :blue[{loaded_count}] of which :green[{len(trades) - trades_count}] were new.')
+    # Show the parsed trades
+    st.session_state.trades = trades
     st.caption(f'Trades found: :blue[{len(trades)}]')
-    # Show in streamlit as dataframe. Show only the Currency and Symbol column. 
-    st.dataframe(data=trades, hide_index=True, width=1100, height=500, column_order=('Symbol', 'Date/Time', 'Quantity', 'Currency', 'T. Price', 'Proceeds', 'Comm/Fee', 'Realized P/L'),
-                    column_config={'Realized P/L': st.column_config.NumberColumn("Profit", format="%.1f")})
+    st.dataframe(data=trades, hide_index=True, width=1100, height=500, column_order=('Symbol', 'Date/Time', 'Quantity', 'Currency', 'T. Price', 'Proceeds', 'Comm/Fee', 'Realized P/L', 'Accumulated Quantity'),
+                    column_config={'Realized P/L': st.column_config.NumberColumn("Profit", format="%.1f"), 'Accumulated Quantity': st.column_config.NumberColumn("Position")})
     return
 
     # Load data
