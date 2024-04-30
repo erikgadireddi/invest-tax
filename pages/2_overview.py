@@ -1,5 +1,6 @@
 import pandas as pd
 import streamlit as st
+from streamlit_pills import pills
 import matchmaker.currency as currency
 
 st.set_page_config(page_title='Párování obchodů', layout='wide')
@@ -14,11 +15,12 @@ else:
 
 daily_rates = currency.load_daily_rates(st.session_state['settings']['currency_rates_dir'])
 yearly_rates = currency.load_yearly_rates(st.session_state['settings']['currency_rates_dir'])
-# currency.add_czk_conversion_to_trades(trades, daily_rates, use_yearly_rates=False)
+currency.add_czk_conversion_to_trades(trades, daily_rates, use_yearly_rates=False)
 
-if trades is not None:    
+if trades is not None and not trades.empty:    
     years = trades['Year'].unique()
-    columns = st.columns(len(years))
+    year = int(pills('Select year to view', [str(year) for year in years]))
+    st.session_state.update(year=year)
     if year:
         trades_display = st.dataframe(trades[trades['Year'] == year], hide_index=True, height=600, column_order=('Symbol', 'Date/Time', 'Quantity', 'Currency', 'T. Price', 'CZK Proceeds', 'CZK Fee', 'CZK Profit', 'Accumulated Quantity', 'Action', 'Type'),
                         column_config={
@@ -27,9 +29,4 @@ if trades is not None:
                             'CZK Proceeds': st.column_config.NumberColumn("Proceeds CZK", format="%.1f"), 
                             'Accumulated Quantity': st.column_config.NumberColumn("Position")
                             })
-        st.caption(f'FIFO profit this year: {trades[trades['Year'] == year]["CZK Profit"].sum():.2f} CZK')
-
-    for i, year in enumerate(years):
-        with columns[i]:
-            st.button(str(year), key=year, on_click=lambda year=year: st.session_state.update(year=year))
-
+        st.caption(f'FIFO profit this year: :green[{trades[trades['Year'] == year]["CZK Profit"].sum():.2f}] CZK')
