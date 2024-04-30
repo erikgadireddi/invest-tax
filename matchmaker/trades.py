@@ -19,15 +19,8 @@ def convert_trade_columns(df):
 def merge_trades(existing, new):
     if existing is None:
         return new
-    count = len(existing) + len(new)
     merged = pd.concat([existing, new])
-    merged = merged[~merged.index.duplicated(keep='first')]
-    ignored = count - len(merged)
-    if ignored > 0:
-        st.write('Imported ', len(new), 'trades,', ignored, 'duplicates were ignored.')
-    else:
-        st.write('Imported ', len(new), 'trades.')
-    return merged
+    return merged[~merged.index.duplicated(keep='first')]
 
 def add_split_data(trades, tickers_dir):
     if 'Split Ratio' not in trades.columns:

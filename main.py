@@ -25,11 +25,11 @@ def import_trades(directory, tickers_dir=None):
 
 def main():
     # Load command-line arguments from commandline.json if exists
-    if os.path.exists('.vscode/commandline.json'):
-        with open('.vscode/commandline.json') as f:
+    if os.path.exists('settings.json'):
+        with open('settings.json') as f:
             data = json.load(f)
             # Use argparse to parse the arguments
-            sys.argv = ['Taxes.py']
+            sys.argv = ['main.py']
             for key, value in data.items():
                 sys.argv.append('--' + key)
                 sys.argv.append(value)
@@ -38,7 +38,7 @@ def main():
     parser = argparse.ArgumentParser(description='Process command-line arguments')
 
     # Add the arguments
-    parser.add_argument('--settings-dir', type=str, required=True, help='Path to CurrencyRates.csv file')
+    parser.add_argument('--settings-dir', type=str, help='Path to CurrencyRates.csv file')
     parser.add_argument('--import-trades-dir', type=str, help='Path to Trades CSV files')
     parser.add_argument('--tickers-dir', type=str, help='Path to load historic ticker data to adjust prices for splits')
     parser.add_argument('--load-trades', type=str, help='Path to load processed trades file')
@@ -58,23 +58,29 @@ def main():
     process_years = None
     preserve_years = None
 
-    if streamlit:
-        # Show file upload widget
-        uploaded_file = st.file_uploader("Choose a file")
-        # On upload, run import trades
-        if uploaded_file is not None:
-            trades = merge_trades(trades, import_activity_statement(uploaded_file))
+    # Show file upload widget
+    uploaded_files = st.file_uploader("Choose a file", accept_multiple_files=True, type=['csv'])
+    import_state = st.caption('')
+    trades_count = len(trades)
+    loaded_count = 0
+    # On upload, run import trades
+    if uploaded_files:
+        for uploaded_file in uploaded_files:
+            import_state.write('Importing trades...')
+            imported = import_activity_statement(uploaded_file)
+            loaded_count += len(imported)
+            import_state.write(f'Merging :blue[{len(imported)}] trades...')
+            trades = merge_trades(trades, imported)
+            import_message = f'Imported :green[{len(trades) - trades_count}] trades.'
             populate_extra_trade_columns(trades, args.tickers_dir)
             st.session_state.trades = trades
-        st.write('Trades found:', len(trades))
-        # Show in streamlit as dataframe. Show only the Currency and Symbol column. 
-        st.dataframe(data=trades, hide_index=True, width=1100, height=500, column_order=('Symbol', 'Date/Time', 'Quantity', 'Currency', 'T. Price', 'Proceeds', 'Comm/Fee', 'Realized P/L'),
-                        column_config={'Realized P/L': st.column_config.NumberColumn("Profit", format="%.1f")})
-        return
-    else:
-        if args.import_trades_dir is None and args.load_trades is None:
-            print('No input directory or processed trades file specified. Exiting.')
-            return
+            import_state.write(import_message)
+    import_state.write(f'Total trades loaded: :blue[{loaded_count}] of which :green[{len(trades) - trades_count}] were new.')
+    st.caption(f'Trades found: :blue[{len(trades)}]')
+    # Show in streamlit as dataframe. Show only the Currency and Symbol column. 
+    st.dataframe(data=trades, hide_index=True, width=1100, height=500, column_order=('Symbol', 'Date/Time', 'Quantity', 'Currency', 'T. Price', 'Proceeds', 'Comm/Fee', 'Realized P/L'),
+                    column_config={'Realized P/L': st.column_config.NumberColumn("Profit", format="%.1f")})
+    return
 
     # Load data
     daily_rates = load_daily_rates(args.settings_dir)

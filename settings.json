@@ -1,0 +1,12 @@
+{
+    "settings-dir": "invest-tax",
+    "tickers-dir": "",
+    "load-trades": "invest-private-data/trades.all.csv",
+    "save-trades": "invest-private-data/trades.all.csv",
+    "process-years": "2023",
+    "preserve-years": "2020,2021,2022",
+    "strategy": "max-loss",
+    "load-matched-trades": "invest-private-data/paired.orders.csv",
+    "save-matched-trades": "invest-private-data/paired.orders.csv",
+    "save-trade-overview-dir": "invest-private-data"
+}
