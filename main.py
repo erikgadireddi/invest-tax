@@ -2,22 +2,14 @@ import pandas as pd
 import numpy as np
 import glob
 import argparse
-import re
-import hashlib
 import os
 import json
 import sys
 import streamlit as st
+from matchmaker.trades import *
+from matchmaker.ibkr import *
 
 streamlit = True
-
-# Used to hash entire rows since there is no unique identifier for each row
-def hash_row(row):
-    row_str = row.to_string()
-    hash_object = hashlib.sha256()
-    hash_object.update(row_str.encode())
-    hash_hex = hash_object.hexdigest()
-    return hash_hex
 
 def adjust_rates_columns(df):
     # Headers contain the divisor for the rates
@@ -50,127 +42,6 @@ def load_daily_rates(directory):
     df.set_index('Datum', inplace=True)
     df = adjust_rates_columns(df)
     return df
-
-def add_accumulated_positions(trades):
-    for symbol, group in trades.groupby('Symbol'):
-        accumulated = 0
-        for index, row in group.sort_values(by=['Date/Time']).iterrows():
-            accumulated += row['Quantity']
-            trades.loc[index, 'Accumulated Quantity'] = accumulated
-
-def convert_trade_columns(df):
-    df['Date/Time'] = pd.to_datetime(df['Date/Time'])
-    df['Quantity'] = pd.to_numeric(df['Quantity'], errors='coerce')
-    df['Proceeds'] = pd.to_numeric(df['Proceeds'], errors='coerce')
-    df['Comm/Fee'] = pd.to_numeric(df['Comm/Fee'], errors='coerce')
-    df['Basis'] = pd.to_numeric(df['Basis'], errors='coerce')
-    df['Realized P/L'] = pd.to_numeric(df['Realized P/L'], errors='coerce')
-    df['MTM P/L'] = pd.to_numeric(df['MTM P/L'], errors='coerce')
-    df['T. Price'] = pd.to_numeric(df['T. Price'], errors='coerce')
-    df['Action'] = df['Code'].apply(lambda x: 'Open' if 'O' in x else 'Close' if 'C' in x else 'Unknown')
-    df['Type'] = df.apply(lambda row: 'Long' if (row['Action'] == 'Open' and row['Quantity'] > 0) or (row['Action'] == 'Close' and row['Quantity'] < 0) else 'Short', axis=1)
-    return df
-
-def add_split_data(trades, tickers_dir):
-    if 'Split Ratio' not in trades.columns:
-        trades['Split Ratio'] = np.nan
-    if tickers_dir is not None:
-        for symbol, group in trades.groupby('Symbol'):
-            filename = tickers_dir + '/' + symbol + '_data.csv'
-            if os.path.exists(filename):
-                try:
-                    ticker = pd.read_csv(tickers_dir + '/' + symbol + '_data.csv')
-                    ticker['Date'] = pd.to_datetime(ticker['Date'], format='%Y-%m-%d').dt.date
-                    ticker.set_index('Date', inplace=True)
-                    for index, row in group[group['Split Ratio']==np.nan].iterrows():
-                        ratio = 1
-                        try:
-                            ratio = ticker.loc[pd.to_datetime(row['Date/Time']).date(), 'Adj Ratio']
-                        except KeyError:
-                            print('No split data for', symbol, 'on', pd.to_datetime(row['Date/Time']).date())
-                        trades.loc[index, 'Split Ratio'] = ratio
-                        if ratio != 1:
-                            print('Adjusted quantity for', symbol, 'from', row['Quantity'], 'to',  row['Quantity'] * ratio, ', ratio:', ratio)
-                    
-                except Exception as e:
-                    print('Error reading', filename, ':', e)
-    trades['Split Ratio'].fillna(1, inplace=True)
-
-def import_activity_statement(file):
-    column_names = ['Trades', 'Header', 'DataDiscriminator', 'Asset Category', 'Currency', 'Symbol', 'Date/Time', 'Quantity', 'T. Price', 'C. Price', 'Proceeds', 'Comm/Fee', 'Basis', 'Realized P/L', 'MTM P/L', 'Code', 'Extra']
-    df = pd.read_csv(file, names=column_names)
-    # Keep only lines with column values "Trades","Data","Order","Stocks"
-    df = df[(df['Trades'] == 'Trades') & (df['Header'] == 'Data') & (df['DataDiscriminator'] == 'Order') & (df['Asset Category'] == 'Stocks')]
-    # First line is the headers: Trades,Header,DataDiscriminator,Asset Category,Currency,Symbol,Date/Time,Quantity,T. Price,C. Price,Proceeds,Comm/Fee,Basis,Realized P/L,MTM P/L,Code
-    # Column	Descriptions
-    # Trades	The trade number.
-    # Header	Header record contains the report title and the date and time of the report.
-    # Asset Category	The asset category of the instrument. Possible values are: "Stocks", "Options", "Futures", "FuturesOptions
-    # Symbol	    The symbol of the instrument you traded.
-    # Date/Time	The date and the time of the execution.
-    # Quantity	The number of units for the transaction.
-    # T. Price	The transaction price.
-    # C. Price	The closing price of the instrument.
-    # Proceeds	Calculated by mulitplying the quantity and the transaction price. The proceeds figure will be negative for buys and positive for sales.
-    # Comm/Fee	The total amount of commission and fees for the transaction.
-    # Basis	    The basis of an opening trade is the inverse of proceeds plus commission and tax amount. For closing trades, the basis is the basis of the opening trade.
-
-    # Data begins on the second line
-    # Example line: Trades,Data,Order,Stocks,CZK,CEZ,"2023-08-03, 08:44:03",250,954,960,-238500,-763.2,239263.2,0,1500,O
-
-    # Filter DataFrame by Asset Category == 'Stocks' and DataDiscriminator == 'Data' (rest is partial sums and totals)
-    df = df[(df['Asset Category'] == 'Stocks') & (df['DataDiscriminator'] == 'Order')]
-
-    # Convert columns to correct types
-    df['Date/Time'] = pd.to_datetime(df['Date/Time'], format='%Y-%m-%d, %H:%M:%S')
-    df['Year'] = df['Date/Time'].dt.year
-    df['Quantity'] = pd.to_numeric(df['Quantity'].str.replace(',', ''), errors='coerce')
-    # Convert the rest
-    df = convert_trade_columns(df)
-    # Set up the hash column as index
-    df['Hash'] = df.apply(hash_row, axis=1)
-    df.set_index('Hash', inplace=True)
-    # st.write('Imported', len(df), 'rows')
-    return df
-
-def import_all_statements(directory, tickers_dir=None):
-    # Go over all 'Activity' exports that contain all data and extract only the 'Trades' part
-    data = None
-    for f in glob.glob(directory + '/U*_*_*.csv'):
-        # Only if matching U12345678_[optional_]20230101_20231231.csv
-        if(re.match(r'.+U(\d+)_(\d{8})_(\d{8})', f)):
-            # Read the file 
-            with open(f, 'r') as file:
-                data = import_activity_statement(file, data, tickers_dir)
-                yield data
-        else:
-            print('Skipping file:', f)
-
-def merge_trades(existing, new):
-    if existing is None:
-        return new
-    count = len(existing) + len(new)
-    merged = pd.concat([existing, new])
-    merged = merged[~merged.index.duplicated(keep='first')]
-    ignored = count - len(merged)
-    if ignored > 0:
-        st.write('Duplicates found and ignored:', ignored)
-    return merged
-
-def populate_extra_trade_columns(trades, tickers_dir=None):
-    add_split_data(trades, tickers_dir)
-    trades['Quantity'] = trades['Quantity'] * trades['Split Ratio']
-    trades['T. Price'] = trades['T. Price'] / trades['Split Ratio']
-    add_accumulated_positions(trades)
-    trades = trades.sort_values(by=['Date/Time'])
-
-# Load Trades CSV as DataFrame
-def import_trades(directory, tickers_dir=None):
-    merged = None
-    for trades in import_all_statements(directory, tickers_dir):
-        merged = merge_trades(merged, trades)
-    populate_extra_trade_columns(merged, tickers_dir)
-    return merged
 
 def get_adjusted_price(ticker, date):
     pass
@@ -336,35 +207,6 @@ def pair_buy_sell(trades, pairs, strategy, process_years=None, preserve_years=No
     pairs['Revenue'] = pairs['Proceeds'] + pairs['Cost']
     return trades[trades['Action'] == 'Open'], trades[trades['Action'] == 'Close'], pairs.sort_values(by=['Symbol','Sell Time', 'Buy Time'])
 
-def print_statistics(trades, sells, year):
-    # Get statistics for last year
-    purchases, sales, commissions, profit_loss_avg, profit_loss_fifo, profit_loss_lifo = get_statistics_czk(trades, sells, year)
-
-    # Print results so far. Format them as CZK currency with 2 decimal places and thousands separator
-    print('Statistics for year ', year)
-    print('Total purchases in CZK:', '{:,.2f}'.format(purchases))
-    print('Total sales in CZK:', '{:,.2f}'.format(sales))
-    print('Total IBKR profit/loss in CZK:', '{:,.2f}'.format(profit_loss_avg))
-    print('Total FIFO profit/loss in CZK:', '{:,.2f}'.format(profit_loss_fifo))
-    print('Total LIFO profit/loss in CZK:', '{:,.2f}'.format(profit_loss_lifo))
-    print('Total commissions in CZK:', '{:,.2f}'.format(commissions))
-
-    # Print paired sells
-    print('Sells this year:')
-    # Print all rows
-    pd.set_option('display.max_rows', None)
-    print(sells[sells['Year'] == year])
-
-    # Also calculate in raw currencies
-    purchases_raw, sales_raw, commissions_raw, profit_loss_avg_raw, profit_loss_fifo_raw, profit_loss_lifo_raw = get_statistics_per_currency(trades, sells, year)
-
-    # Print results so far
-    print('Total purchases per currency:', purchases_raw)
-    print('Total sales per currency:', sales_raw)
-    print('Total profit/loss per currency:', profit_loss_avg_raw)
-    print('Total FIFO profit/loss per currency:', profit_loss_fifo_raw)
-    print('Total LIFO profit/loss per currency:', profit_loss_lifo_raw)
-    print('Total commissions per currency:', commissions_raw)
 
 def add_czk_conversion(trade_pairs, rates, use_yearly_rates=True):
     annotated_pairs = trade_pairs.copy()
@@ -378,7 +220,15 @@ def add_czk_conversion(trade_pairs, rates, use_yearly_rates=True):
     annotated_pairs['CZK Proceeds'] = annotated_pairs['Proceeds'] *  annotated_pairs['Sell CZK Rate']
     annotated_pairs['CZK Revenue'] = annotated_pairs['CZK Proceeds'] + annotated_pairs['CZK Cost']
     return annotated_pairs
-    
+
+
+# Load Trades CSV as DataFrame
+def import_trades(directory, tickers_dir=None):
+    merged = None
+    for trades in import_all_statements(directory, tickers_dir):
+        merged = merge_trades(merged, trades)
+    populate_extra_trade_columns(merged, tickers_dir)
+    return merged    
 
 def main():
     # Load command-line arguments from commandline.json if exists
@@ -410,7 +260,7 @@ def main():
     # Parse the arguments
     args = parser.parse_args()
 
-    trades = st.session_state.trades if 'trades' in st.session_state else None
+    trades = st.session_state.trades if 'trades' in st.session_state else pd.DataFrame()
     sell_buy_pairs = None
     process_years = None
     preserve_years = None
@@ -420,7 +270,7 @@ def main():
         uploaded_file = st.file_uploader("Choose a file")
         # On upload, run import trades
         if uploaded_file is not None:
-            trades = merge_trades(import_activity_statement(uploaded_file), trades)
+            trades = merge_trades(trades, import_activity_statement(uploaded_file))
             populate_extra_trade_columns(trades, args.tickers_dir)
             st.session_state.trades = trades
         st.write('Trades found:', len(trades))
