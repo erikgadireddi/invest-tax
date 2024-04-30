@@ -7,6 +7,7 @@ import hashlib
 import os
 import json
 import sys
+import streamlit as st
 
 # Used to hash entire rows since there is no unique identifier for each row
 def hash_row(row):
@@ -91,26 +92,34 @@ def add_split_data(trades, tickers_dir):
                 except Exception as e:
                     print('Error reading', filename, ':', e)
 
-# Load Trades CSV as DataFrame
-def import_trades(directory, existing_trades=None, tickers_dir=None):
+
+
+def import_activity_statement(file, existing_data=None, tickers_dir=None):
+    column_names = ['Trades', 'Header', 'DataDiscriminator', 'Asset Category', 'Currency', 'Symbol', 'Date/Time', 'Quantity', 'T. Price', 'C. Price', 'Proceeds', 'Comm/Fee', 'Basis', 'Realized P/L', 'MTM P/L', 'Code', 'Extra']
+    data = existing_data
+    if data is None:
+        data = pd.read_csv(file, names=column_names)
+    else:
+        data = pd.concat([data, pd.read_csv(file, names=column_names)], ignore_index = True)
+    # Keep only lines with column values "Trades","Data","Order","Stocks"
+    data = data[(data['Trades'] == 'Trades') & (data['Header'] == 'Data') & (data['DataDiscriminator'] == 'Order') & (data['Asset Category'] == 'Stocks')]
+    return data
+
+def import_all_statements(directory, existing_data=None, tickers_dir=None):
     # Go over all 'Activity' exports that contain all data and extract only the 'Trades' part
     data = None
     for f in glob.glob(directory + '/U*_*_*.csv'):
         # Only if matching U12345678_[optional_]20230101_20231231.csv
         if(re.match(r'.+U(\d+)_(\d{8})_(\d{8})', f)):
-            # Read the file
+            # Read the file ``````````````````````
             with open(f, 'r') as file:
-                # Specify the column names
-                column_names = ['Trades', 'Header', 'DataDiscriminator', 'Asset Category', 'Currency', 'Symbol', 'Date/Time', 'Quantity', 'T. Price', 'C. Price', 'Proceeds', 'Comm/Fee', 'Basis', 'Realized P/L', 'MTM P/L', 'Code', 'Extra']
-                if data is None:
-                    data = pd.read_csv(file, names=column_names)
-                else:
-                    data = pd.concat([data, pd.read_csv(file, names=column_names)], ignore_index = True)
-                # Keep only lines with column values "Trades","Data","Order","Stocks"
-                data = data[(data['Trades'] == 'Trades') & (data['Header'] == 'Data') & (data['DataDiscriminator'] == 'Order') & (data['Asset Category'] == 'Stocks')]
+                data = import_activity_statement(file, data, tickers_dir)
         else:
             print('Skipping file:', f)
-    df = data
+
+# Load Trades CSV as DataFrame
+def import_trades(directory, existing_trades=None, tickers_dir=None):
+    df = import_all_statements(directory, existing_trades, tickers_dir)
     # First line is the headers: Trades,Header,DataDiscriminator,Asset Category,Currency,Symbol,Date/Time,Quantity,T. Price,C. Price,Proceeds,Comm/Fee,Basis,Realized P/L,MTM P/L,Code
     # Column	Descriptions
     # Trades	The trade number.
@@ -399,13 +408,21 @@ def main():
         print('No input directory or processed trades file specified. Exiting.')
         return
 
-    # Load data
-    daily_rates = load_daily_rates(args.settings_dir)
-    yearly_rates = load_yearly_rates(args.settings_dir)
     trades = None
     sell_buy_pairs = None
     process_years = None
     preserve_years = None
+
+    # Show file upload widget
+    uploaded_file = st.file_uploader("Choose a file")
+    # On upload, run import trades
+    if uploaded_file is not None:
+        trades = import_activity_statement(uploaded_file, None, args.tickers_dir)
+        return
+
+    # Load data
+    daily_rates = load_daily_rates(args.settings_dir)
+    yearly_rates = load_yearly_rates(args.settings_dir)
 
     if args.load_trades is not None:
         trades = pd.read_csv(args.load_trades)
