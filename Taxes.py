@@ -9,6 +9,8 @@ import json
 import sys
 import streamlit as st
 
+streamlit = True
+
 # Used to hash entire rows since there is no unique identifier for each row
 def hash_row(row):
     row_str = row.to_string()
@@ -69,6 +71,7 @@ def convert_trade_columns(df):
     df['Type'] = df.apply(lambda row: 'Long' if (row['Action'] == 'Open' and row['Quantity'] > 0) or (row['Action'] == 'Close' and row['Quantity'] < 0) else 'Short', axis=1)
     return df
 
+@st.cache_data
 def add_split_data(trades, tickers_dir):
     trades['Split Ratio'] = 1
     if tickers_dir is not None:
@@ -92,34 +95,15 @@ def add_split_data(trades, tickers_dir):
                 except Exception as e:
                     print('Error reading', filename, ':', e)
 
-
-
-def import_activity_statement(file, existing_data=None, tickers_dir=None):
+def import_activity_statement(file, existing_data=None):
     column_names = ['Trades', 'Header', 'DataDiscriminator', 'Asset Category', 'Currency', 'Symbol', 'Date/Time', 'Quantity', 'T. Price', 'C. Price', 'Proceeds', 'Comm/Fee', 'Basis', 'Realized P/L', 'MTM P/L', 'Code', 'Extra']
-    data = existing_data
-    if data is None:
-        data = pd.read_csv(file, names=column_names)
+    df = existing_data
+    if df is None:
+        df = pd.read_csv(file, names=column_names)
     else:
-        data = pd.concat([data, pd.read_csv(file, names=column_names)], ignore_index = True)
+        df = pd.concat([df, pd.read_csv(file, names=column_names)], ignore_index = True)
     # Keep only lines with column values "Trades","Data","Order","Stocks"
-    data = data[(data['Trades'] == 'Trades') & (data['Header'] == 'Data') & (data['DataDiscriminator'] == 'Order') & (data['Asset Category'] == 'Stocks')]
-    return data
-
-def import_all_statements(directory, existing_data=None, tickers_dir=None):
-    # Go over all 'Activity' exports that contain all data and extract only the 'Trades' part
-    data = None
-    for f in glob.glob(directory + '/U*_*_*.csv'):
-        # Only if matching U12345678_[optional_]20230101_20231231.csv
-        if(re.match(r'.+U(\d+)_(\d{8})_(\d{8})', f)):
-            # Read the file ``````````````````````
-            with open(f, 'r') as file:
-                data = import_activity_statement(file, data, tickers_dir)
-        else:
-            print('Skipping file:', f)
-
-# Load Trades CSV as DataFrame
-def import_trades(directory, existing_trades=None, tickers_dir=None):
-    df = import_all_statements(directory, existing_trades, tickers_dir)
+    df = df[(df['Trades'] == 'Trades') & (df['Header'] == 'Data') & (df['DataDiscriminator'] == 'Order') & (df['Asset Category'] == 'Stocks')]
     # First line is the headers: Trades,Header,DataDiscriminator,Asset Category,Currency,Symbol,Date/Time,Quantity,T. Price,C. Price,Proceeds,Comm/Fee,Basis,Realized P/L,MTM P/L,Code
     # Column	Descriptions
     # Trades	The trade number.
@@ -149,21 +133,39 @@ def import_trades(directory, existing_trades=None, tickers_dir=None):
     # Set up the hash column as index
     df['Hash'] = df.apply(hash_row, axis=1)
     df.set_index('Hash', inplace=True)
-    add_accumulated_positions(df)
+    return df
 
+def import_all_statements(directory, existing_data=None, tickers_dir=None):
+    # Go over all 'Activity' exports that contain all data and extract only the 'Trades' part
+    data = None
+    for f in glob.glob(directory + '/U*_*_*.csv'):
+        # Only if matching U12345678_[optional_]20230101_20231231.csv
+        if(re.match(r'.+U(\d+)_(\d{8})_(\d{8})', f)):
+            # Read the file 
+            with open(f, 'r') as file:
+                data = import_activity_statement(file, data, tickers_dir)
+        else:
+            print('Skipping file:', f)
+
+def deduplicate_trades(trades):
+    count = len(trades)
+    trades = trades[~trades.index.duplicated(keep='first')]
+    st.write('Duplicates found and removed:', count - len(trades))
+    return trades
+
+def populate_extra_trade_columns(trades, tickers_dir=None):
+    add_split_data(trades, tickers_dir)
+    trades['Quantity'] = trades['Quantity'] * trades['Split Ratio']
+    trades['T. Price'] = trades['T. Price'] / trades['Split Ratio']
+    add_accumulated_positions(trades)
+    trades = trades.sort_values(by=['Date/Time'])
+
+# Load Trades CSV as DataFrame
+def import_trades(directory, existing_trades=None, tickers_dir=None):
+    df = import_all_statements(directory, existing_trades, tickers_dir)
     df = pd.concat([existing_trades, df])
-    # Order by Date/Time
-    df = df.sort_values(by=['Date/Time'])
-    # Count the rows before removing duplicates
-    count = len(df)
-    df = df[~df.index.duplicated(keep='first')]
-    if (count != len(df)):
-        print('Duplicates found and removed:', count - len(df))
-
-    add_split_data(df, tickers_dir)
-    df['Quantity'] = df['Quantity'] * df['Split Ratio']
-    df['T. Price'] = df['T. Price'] / df['Split Ratio']
-    
+    df = deduplicate_trades(df)
+    populate_extra_trade_columns(df, tickers_dir)
     return df
 
 def get_adjusted_price(ticker, date):
@@ -404,21 +406,28 @@ def main():
     # Parse the arguments
     args = parser.parse_args()
 
-    if args.import_trades_dir is None and args.load_trades is None:
-        print('No input directory or processed trades file specified. Exiting.')
-        return
-
-    trades = None
+    trades = st.session_state.trades if 'trades' in st.session_state else None
     sell_buy_pairs = None
     process_years = None
     preserve_years = None
 
-    # Show file upload widget
-    uploaded_file = st.file_uploader("Choose a file")
-    # On upload, run import trades
-    if uploaded_file is not None:
-        trades = import_activity_statement(uploaded_file, None, args.tickers_dir)
+    if streamlit:
+        # Show file upload widget
+        uploaded_file = st.file_uploader("Choose a file")
+        # On upload, run import trades
+        if uploaded_file is not None:
+            trades = deduplicate_trades(import_activity_statement(uploaded_file, trades))
+            populate_extra_trade_columns(trades, args.tickers_dir)
+            st.session_state.trades = trades
+
+            # Show in streamlit as dataframe. Show only the Currency and Symbol column. 
+            st.dataframe(data=trades, hide_index=True, width=1100, height=500, column_order=('Symbol', 'Date/Time', 'Quantity', 'Currency', 'T. Price', 'Proceeds', 'Comm/Fee', 'Realized P/L'),
+                         column_config={'Realized P/L': st.column_config.NumberColumn("Profit", format="%.1f")})
         return
+    else:
+        if args.import_trades_dir is None and args.load_trades is None:
+            print('No input directory or processed trades file specified. Exiting.')
+            return
 
     # Load data
     daily_rates = load_daily_rates(args.settings_dir)
