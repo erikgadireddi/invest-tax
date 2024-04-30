@@ -71,9 +71,9 @@ def convert_trade_columns(df):
     df['Type'] = df.apply(lambda row: 'Long' if (row['Action'] == 'Open' and row['Quantity'] > 0) or (row['Action'] == 'Close' and row['Quantity'] < 0) else 'Short', axis=1)
     return df
 
-@st.cache_data
 def add_split_data(trades, tickers_dir):
-    trades['Split Ratio'] = 1
+    if 'Split Ratio' not in trades.columns:
+        trades['Split Ratio'] = np.nan
     if tickers_dir is not None:
         for symbol, group in trades.groupby('Symbol'):
             filename = tickers_dir + '/' + symbol + '_data.csv'
@@ -82,7 +82,7 @@ def add_split_data(trades, tickers_dir):
                     ticker = pd.read_csv(tickers_dir + '/' + symbol + '_data.csv')
                     ticker['Date'] = pd.to_datetime(ticker['Date'], format='%Y-%m-%d').dt.date
                     ticker.set_index('Date', inplace=True)
-                    for index, row in group.iterrows():
+                    for index, row in group[group['Split Ratio']==np.nan].iterrows():
                         ratio = 1
                         try:
                             ratio = ticker.loc[pd.to_datetime(row['Date/Time']).date(), 'Adj Ratio']
@@ -94,14 +94,11 @@ def add_split_data(trades, tickers_dir):
                     
                 except Exception as e:
                     print('Error reading', filename, ':', e)
+    trades['Split Ratio'].fillna(1, inplace=True)
 
-def import_activity_statement(file, existing_data=None):
+def import_activity_statement(file):
     column_names = ['Trades', 'Header', 'DataDiscriminator', 'Asset Category', 'Currency', 'Symbol', 'Date/Time', 'Quantity', 'T. Price', 'C. Price', 'Proceeds', 'Comm/Fee', 'Basis', 'Realized P/L', 'MTM P/L', 'Code', 'Extra']
-    df = existing_data
-    if df is None:
-        df = pd.read_csv(file, names=column_names)
-    else:
-        df = pd.concat([df, pd.read_csv(file, names=column_names)], ignore_index = True)
+    df = pd.read_csv(file, names=column_names)
     # Keep only lines with column values "Trades","Data","Order","Stocks"
     df = df[(df['Trades'] == 'Trades') & (df['Header'] == 'Data') & (df['DataDiscriminator'] == 'Order') & (df['Asset Category'] == 'Stocks')]
     # First line is the headers: Trades,Header,DataDiscriminator,Asset Category,Currency,Symbol,Date/Time,Quantity,T. Price,C. Price,Proceeds,Comm/Fee,Basis,Realized P/L,MTM P/L,Code
@@ -133,6 +130,7 @@ def import_activity_statement(file, existing_data=None):
     # Set up the hash column as index
     df['Hash'] = df.apply(hash_row, axis=1)
     df.set_index('Hash', inplace=True)
+    # st.write('Imported', len(df), 'rows')
     return df
 
 def import_all_statements(directory, existing_data=None, tickers_dir=None):
@@ -147,11 +145,14 @@ def import_all_statements(directory, existing_data=None, tickers_dir=None):
         else:
             print('Skipping file:', f)
 
-def deduplicate_trades(trades):
-    count = len(trades)
-    trades = trades[~trades.index.duplicated(keep='first')]
-    st.write('Duplicates found and removed:', count - len(trades))
-    return trades
+def merge_trades(existing, new):
+    count = len(existing) + len(new)
+    merged = pd.concat([existing, new])
+    merged = merged[~merged.index.duplicated(keep='first')]
+    ignored = count - len(merged)
+    if ignored > 0:
+        st.write('Duplicates found and ignored:', ignored)
+    return merged
 
 def populate_extra_trade_columns(trades, tickers_dir=None):
     add_split_data(trades, tickers_dir)
@@ -163,8 +164,7 @@ def populate_extra_trade_columns(trades, tickers_dir=None):
 # Load Trades CSV as DataFrame
 def import_trades(directory, existing_trades=None, tickers_dir=None):
     df = import_all_statements(directory, existing_trades, tickers_dir)
-    df = pd.concat([existing_trades, df])
-    df = deduplicate_trades(df)
+    df = merge_trades(existing_trades, df)
     populate_extra_trade_columns(df, tickers_dir)
     return df
 
@@ -416,13 +416,13 @@ def main():
         uploaded_file = st.file_uploader("Choose a file")
         # On upload, run import trades
         if uploaded_file is not None:
-            trades = deduplicate_trades(import_activity_statement(uploaded_file, trades))
+            trades = merge_trades(import_activity_statement(uploaded_file), trades)
             populate_extra_trade_columns(trades, args.tickers_dir)
             st.session_state.trades = trades
-
-            # Show in streamlit as dataframe. Show only the Currency and Symbol column. 
-            st.dataframe(data=trades, hide_index=True, width=1100, height=500, column_order=('Symbol', 'Date/Time', 'Quantity', 'Currency', 'T. Price', 'Proceeds', 'Comm/Fee', 'Realized P/L'),
-                         column_config={'Realized P/L': st.column_config.NumberColumn("Profit", format="%.1f")})
+        st.write('Trades found:', len(trades))
+        # Show in streamlit as dataframe. Show only the Currency and Symbol column. 
+        st.dataframe(data=trades, hide_index=True, width=1100, height=500, column_order=('Symbol', 'Date/Time', 'Quantity', 'Currency', 'T. Price', 'Proceeds', 'Comm/Fee', 'Realized P/L'),
+                        column_config={'Realized P/L': st.column_config.NumberColumn("Profit", format="%.1f")})
         return
     else:
         if args.import_trades_dir is None and args.load_trades is None:
