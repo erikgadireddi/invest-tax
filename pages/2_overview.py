@@ -52,7 +52,8 @@ if trades is not None and not trades.empty:
     else: 
         st.caption(f'FIFO profit: :green[{profit_czk:.2f}] CZK')
         
-    suspicious_positions = shown_trades[(shown_trades['Accumulated Quantity'] < 0) & (shown_trades['Type'] == 'Long') & (shown_trades['Action'] == 'Close')]
+    suspicious_positions = shown_trades[((shown_trades['Accumulated Quantity'] < 0) & (shown_trades['Type'] == 'Long') & (shown_trades['Action'] == 'Close') | 
+                                         (shown_trades['Accumulated Quantity'] > 0) & (shown_trades['Type'] == 'Short') & (shown_trades['Action'] == 'Close'))]
     if len(suspicious_positions) > 0:
         st.caption('Negative positions detected on long positions. Your data may be incomplete. Please check your imports.')
         st.dataframe(suspicious_positions, hide_index=True)
