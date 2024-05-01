@@ -40,7 +40,7 @@ def page():
         st.caption(f'Strategy for {show_year}: {show_strategy}')
         # Create a list of all years except the one selected
         other_years = [str(y) for y in years if y != show_year]
-        buys, sells, sell_buy_pairs = pair_buy_sell(trades, pd.DataFrame(), show_strategy, [show_year])
+        buys, sells, sell_buy_pairs = pair_buy_sell(trades, pd.DataFrame(), show_strategy)
         if this_config['yearly_rates']:
             yearly_rates = currency.load_yearly_rates(st.session_state['settings']['currency_rates_dir'])
             pairs_in_czk = currency.add_czk_conversion_to_pairs(sell_buy_pairs, yearly_rates, True)
@@ -48,7 +48,8 @@ def page():
             daily_rates = currency.load_daily_rates(st.session_state['settings']['currency_rates_dir'])
             pairs_in_czk = currency.add_czk_conversion_to_pairs(sell_buy_pairs, daily_rates, False)
         pairs_in_czk['Percent Return'] = pairs_in_czk['Ratio'] * 100
-        trades_display = st.dataframe(pairs_in_czk[pairs_in_czk['Sell Time'].dt.year == show_year], hide_index=True, height=600, 
+        filtered_pairs = pairs_in_czk[pairs_in_czk['Sell Time'].dt.year == show_year]
+        trades_display = st.dataframe(filtered_pairs, hide_index=True, height=600, 
                                     column_order=('Symbol','Quantity','Buy Time','Buy Price','Sell Time','Sell Price','Currency','Buy Cost','Sell Proceeds','Revenue',
                                                 'CZK Revenue','Percent Return','Type','Taxable','Buy CZK Rate','Sell CZK Rate', 'CZK Cost','CZK Proceeds'),
                                     column_config={
@@ -73,7 +74,7 @@ def page():
                                         })
         
         unpaired_sells = sells[(sells['Year'] == show_year) & (sells['Uncovered Quantity'] != 0)]
-        footer = f'Výdělek v CZK: :green[{pairs_in_czk["CZK Revenue"].sum():.2f}] CZK'
+        footer = f'Výdělek v CZK: :green[{filtered_pairs[filtered_pairs['Taxable'] == 1]["CZK Revenue"].sum():.2f}] CZK'
         if not unpaired_sells.empty:
             footer += f' | Pozor, :red[{len(unpaired_sells)}] nenapárovaných prodejů!'
         st.caption(footer)
