@@ -21,7 +21,7 @@ def import_raw_trades(file):
     df = pd.read_csv(file)
     df.set_index('Hash', inplace=True)
     df = convert_trade_columns(df)
-    return df
+    return df, pd.DataFrame()
 
 @st.cache_data()
 def merge_trades(existing, new):

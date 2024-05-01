@@ -85,10 +85,10 @@ def main():
     if uploaded_files:
         for uploaded_file in uploaded_files:
             import_state.write('Importing trades...')
-            imported = import_trade_file(uploaded_file)
-            loaded_count += len(imported)
-            import_state.write(f'Merging :blue[{len(imported)}] trades...')
-            trades = merge_trades(trades, imported)
+            imported_trades, imported_actions = import_trade_file(uploaded_file)
+            loaded_count += len(imported_trades)
+            import_state.write(f'Merging :blue[{len(imported_trades)}] trades...')
+            trades = merge_trades(trades, imported_trades)
             import_message = f'Imported :green[{len(trades) - trades_count}] trades.'
             populate_extra_trade_columns(trades, st.session_state['settings']['tickers_dir'])
             st.session_state.trades = trades

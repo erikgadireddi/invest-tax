@@ -1,21 +1,23 @@
 import glob
 import re
+
+import numpy as np
 from .data import hash_row
 from .trades import convert_trade_columns
 from io import StringIO
 import pandas as pd
 import streamlit as st
 
-@st.cache_data()
-def import_activity_statement(file):
-    # column_names = ['Trades', 'Header', 'DataDiscriminator', 'Asset Category', 'Currency', 'Symbol', 'Date/Time', 'Quantity', 'T. Price', 'C. Price', 'Proceeds', 'Comm/Fee', 'Basis', 'Realized P/L', 'MTM P/L', 'Code', 'Extra']
-    # Decode file as utf-8
+def dataframe_from_lines_with_prefix(file, prefix):
+    file.seek(0)
     file = [line.decode('utf-8') for line in file]
     # Filter file lines to those beginning with 'Trades'
-    file_lines = [line for line in file if line.startswith('Trades')]
+    file_lines = [line for line in file if line.startswith(prefix)]
     file_data = StringIO('\n'.join(file_lines))
-    df = pd.read_csv(file_data)
-    # Keep only lines with column values "Trades","Data","Order","Stocks"
+    return pd.read_csv(file_data)
+
+def import_trades(file):
+    df = dataframe_from_lines_with_prefix(file, 'Trades')
     df = df[(df['Trades'] == 'Trades') & (df['Header'] == 'Data') & (df['DataDiscriminator'] == 'Order') & (df['Asset Category'] == 'Stocks')]
     # First line is the headers: Trades,Header,DataDiscriminator,Asset Category,Currency,Symbol,Date/Time,Quantity,T. Price,C. Price,Proceeds,Comm/Fee,Basis,Realized P/L,MTM P/L,Code
     # Column	Descriptions
@@ -48,6 +50,40 @@ def import_activity_statement(file):
     df.set_index('Hash', inplace=True)
     # st.write('Imported', len(df), 'rows')
     return df
+
+def import_corporate_actions(file):
+    df = dataframe_from_lines_with_prefix(file, 'Corporate Actions,')
+    df = df[df['Asset Category'] == 'Stocks']
+    df.drop(columns=['Corporate Actions', 'Header', 'Asset Category'], inplace=True)
+    df['Action'] = df['Description'].apply(lambda x: 'Dividend' if 'Dividend' in x else 'Split' if 'Split' in x else 'Unknown')
+    
+    def parse_action_symbol(text):
+        match = re.search(r'^(\w+)\(\w+\)', text)
+        if match:
+            return match.group(1)
+        return None
+    
+    def parse_split_text(text):
+        match = re.search(r'([\w\.]+)\(\w+\) Split (\d+) for (\d+)', text)
+        if match:
+            return match.group(1), int(match.group(2)), int(match.group(3))
+        return None, None, None
+    
+    def get_split_ratio(text):
+        ticker, before, after = parse_split_text(text)
+        if before is not None and after is not None:
+            return float(after) / before
+        return np.nan
+    
+    df['Symbol'] = df['Description'].apply(lambda x: parse_action_symbol(x))    
+    df['Amount'] = df[df['Action'] == 'Split']['Description'].apply(lambda x: get_split_ratio(x))
+    return df
+
+@st.cache_data()
+def import_activity_statement(file):
+    trades = import_trades(file)
+    actions = import_corporate_actions(file)
+    return trades, actions
 
 def import_all_statements(directory, tickers_dir=None):
     # Go over all 'Activity' exports that contain all data and extract only the 'Trades' part
