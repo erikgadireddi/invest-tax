@@ -2,20 +2,26 @@ import glob
 import re
 from .data import hash_row
 from .trades import convert_trade_columns
+from io import StringIO
 import pandas as pd
 import streamlit as st
 
 @st.cache_data()
 def import_activity_statement(file):
-    column_names = ['Trades', 'Header', 'DataDiscriminator', 'Asset Category', 'Currency', 'Symbol', 'Date/Time', 'Quantity', 'T. Price', 'C. Price', 'Proceeds', 'Comm/Fee', 'Basis', 'Realized P/L', 'MTM P/L', 'Code', 'Extra']
-    df = pd.read_csv(file, names=column_names)
+    # column_names = ['Trades', 'Header', 'DataDiscriminator', 'Asset Category', 'Currency', 'Symbol', 'Date/Time', 'Quantity', 'T. Price', 'C. Price', 'Proceeds', 'Comm/Fee', 'Basis', 'Realized P/L', 'MTM P/L', 'Code', 'Extra']
+    # Decode file as utf-8
+    file = [line.decode('utf-8') for line in file]
+    # Filter file lines to those beginning with 'Trades'
+    file_lines = [line for line in file if line.startswith('Trades')]
+    file_data = StringIO('\n'.join(file_lines))
+    df = pd.read_csv(file_data)
     # Keep only lines with column values "Trades","Data","Order","Stocks"
     df = df[(df['Trades'] == 'Trades') & (df['Header'] == 'Data') & (df['DataDiscriminator'] == 'Order') & (df['Asset Category'] == 'Stocks')]
     # First line is the headers: Trades,Header,DataDiscriminator,Asset Category,Currency,Symbol,Date/Time,Quantity,T. Price,C. Price,Proceeds,Comm/Fee,Basis,Realized P/L,MTM P/L,Code
     # Column	Descriptions
     # Trades	The trade number.
     # Header	Header record contains the report title and the date and time of the report.
-    # Asset Category	The asset category of the instrument. Possible values are: "Stocks", "Options", "Futures", "FuturesOptions
+    # Asset Category	The asset category of the instrument. Possibl   e values are: "Stocks", "Options", "Futures", "FuturesOptions
     # Symbol	    The symbol of the instrument you traded.
     # Date/Time	The date and the time of the execution.
     # Quantity	The number of units for the transaction.
