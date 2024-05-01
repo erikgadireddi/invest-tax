@@ -40,7 +40,7 @@ def import_activity_statement(file):
     # Convert columns to correct types
     df['Date/Time'] = pd.to_datetime(df['Date/Time'], format='%Y-%m-%d, %H:%M:%S')
     df['Year'] = df['Date/Time'].dt.year
-    df['Quantity'] = pd.to_numeric(df['Quantity'].str.replace(',', ''), errors='coerce')
+    df['Quantity'] = pd.to_numeric(df['Quantity'].str.replace(',', '') if isinstance(df['Quantity'], str) else df['Quantity'], errors='coerce')
     # Convert the rest
     df = convert_trade_columns(df)
     # Set up the hash column as index
