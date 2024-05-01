@@ -1,6 +1,8 @@
 
 import pandas as pd
+import streamlit as st
 
+strategies = ['FIFO', 'LIFO', 'AverageCost', 'MaxLoss', 'MaxProfit']
 
 def load_buy_sell_pairs(filename):
     pairs = pd.read_csv(filename)
@@ -29,7 +31,8 @@ def fill_trades_covered_quantity(trades, sell_buy_pairs):
             trades.loc[sell_index, 'Covered Quantity'] += quantity
             trades.loc[sell_index, 'Uncovered Quantity'] += quantity
     return trades
-    
+
+@st.cache_data()
 def pair_buy_sell(trades, pairs, strategy, process_years=None, preserve_years=None):
     # Group all trades by Symbol into a new DataFrame
     # For each sell order (negative Proceeds), find enough corresponding buy orders (positive Proceeds) with the same Symbol to cover the sell order
@@ -57,21 +60,21 @@ def pair_buy_sell(trades, pairs, strategy, process_years=None, preserve_years=No
             if sell['Uncovered Quantity'] == 0 or (process_years is not None and sell['Year'] not in process_years):
                 continue
             
-            if strategy == 'lifo':
+            if strategy == 'LIFO':
                 # LIFO should prefer oldest not taxable transactions, then youngest taxable transactions
                 commands = [('FIFO', 'IgnoreTaxable'), ('LIFO', 'All')]
-            elif strategy == 'average-cost':
+            elif strategy == 'AverageCost':
                 # Pair like IBKR would compute P/L from average price of all buy orders
                 commands = [('AverageCost', 'All')]
-            elif strategy == 'max-loss':
+            elif strategy == 'MaxLoss':
                 commands = [('MaxProfit', 'IgnoreTaxable'), ('MaxLoss', 'All')]
-            elif strategy == 'max-profit':
+            elif strategy == 'MaxProfit':
                 commands = [('MaxLose', 'IgnoreTaxable'), ('MaxProfit', 'All')]
-            elif strategy == 'fifo':
+            elif strategy == 'FIFO':
                 # FIFO is easy, just sort by Date/Time
                 commands = [('FIFO', 'All')]
             else:
-                print('Unknown strategy:', strategy)
+                st.error(f'Unknown strategy: {strategy}')
                 return trades, pairs
 
             # We sell using IBKR average price, meaning we need to always pair the same fraction of each buy order

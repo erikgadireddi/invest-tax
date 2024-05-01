@@ -14,8 +14,6 @@ import matchmaker.data as data
 
 streamlit = True
 
-
-
 # Load Trades CSV as DataFrame
 def import_trades(directory, tickers_dir=None):
     merged = None
@@ -44,7 +42,6 @@ def main():
     data.load_settings()
     # st.header('Taxonomy Matchmaker')
     st.subheader('Import Trades From IBKR Activity Statements')
-
     
     # Process command-line arguments
     parser = argparse.ArgumentParser(description='Process command-line arguments')
@@ -73,15 +70,18 @@ def main():
     # Load list of filenames from session state
     previous_uploads = st.session_state.filenames if 'filenames' in st.session_state else []
 
+    def change_uploaded_files(trades):
+        if [f.name for f in uploaded_files] != previous_uploads:
+            # If less files were uploaded, we need to clear the trades. Until each row knows it source, reset it all
+            if len(uploaded_files) < len(previous_uploads):
+                # Drop all rows
+                trades.drop(trades.index, inplace=True)
+        # Save newly uploaded files to session
+        st.session_state.filenames = [f.name for f in uploaded_files]
+
     # Show file upload widget
-    uploaded_files = st.file_uploader("Choose a file", accept_multiple_files=True, type=['csv'])
-    # Compare filenames to uploaded files.
-    if [f.name for f in uploaded_files] != previous_uploads:
-        # If less files were uploaded, we need to clear the trades. Until each row knows it source, reset it all
-        if len(uploaded_files) < len(previous_uploads):
-            trades = pd.DataFrame()
-    # Save newly uploaded files to session
-    st.session_state.filenames = [f.name for f in uploaded_files]
+    uploaded_files = st.file_uploader("Choose a file", accept_multiple_files=True, type=['csv'], 
+                                      on_change=lambda: change_uploaded_files(trades), key=None, help='Upload IBKR Activity Statements or CSV files with trades.')
         
     import_state = st.caption('')
     trades_count = len(trades)
@@ -117,6 +117,7 @@ def main():
     if (len(trades) > 0):
         trades_csv = trades_to_csv(trades)
         st.download_button('Download trades in single file', trades_csv, 'merged_trades.csv', 'text/csv')
+    st.button('Clear trades', on_click=lambda: st.session_state.pop('trades', None))
     return
 
     # Load data

@@ -5,7 +5,7 @@ import matchmaker.currency as currency
 import matchmaker.data as data 
 
 data.load_settings()
-st.set_page_config(page_title='Párování obchodů', layout='wide')
+st.set_page_config(page_title='Prehled', layout='centered')
 
 trades = st.session_state.trades if 'trades' in st.session_state else pd.DataFrame()
 year = st.session_state.year if 'year' in st.session_state else None
