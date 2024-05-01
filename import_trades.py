@@ -85,7 +85,7 @@ def main():
         
     st.caption('To start, drop your IBKR Activity Statements here. You can export them using Statements->Activity on IBKR web. '
                'It allows a maximum of 365 days at a time, so you may need several exports. They can overlap and will be merged correctly.\n'
-               'Once imported, you can download the merged trades as a single CSV file for future imports.')
+               'Once imported, you can download the merged trades as a single CSV file for future imports. Nothing is stored on the server.')
     import_state = st.caption('')
     trades_count = len(trades)
     loaded_count = 0
