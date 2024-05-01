@@ -65,22 +65,16 @@ def main():
     process_years = None
     preserve_years = None
 
-    # Load list of filenames from session state
-    previous_uploads = st.session_state.filenames if 'filenames' in st.session_state else []
-
-    def change_uploaded_files(trades):
-        if [f.name for f in uploaded_files] != previous_uploads:
-            # If less files were uploaded, we need to clear the trades. Until each row knows it source, reset it all
-            if len(uploaded_files) < len(previous_uploads):
-                # Drop all rows
-                trades.drop(trades.index, inplace=True)
-        # Save newly uploaded files to session
-        st.session_state.filenames = [f.name for f in uploaded_files]
-
+    def change_uploaded_files(trades, previous_uploads):
+        trades.drop(trades.index, inplace=True)
+        
     # Show file upload widget
     uploaded_files = st.file_uploader("Choose a file", accept_multiple_files=True, type=['csv'], 
-                                      on_change=lambda: change_uploaded_files(trades), key=None, help='Upload IBKR Activity Statements or CSV files with trades.')
-        
+                                      on_change=lambda: change_uploaded_files(trades, uploaded_files), key='file_uploader', help='Upload IBKR Activity Statements or CSV files with trades.')
+    # Save newly uploaded files to session
+    # Load list of filenames from session state
+    st.session_state.uploaded_files = [f.name for f in uploaded_files]
+
     st.caption('To start, drop your IBKR Activity Statements here. You can export them using Statements->Activity on IBKR web. '
                'It allows a maximum of 365 days at a time, so you may need several exports. They can overlap and will be merged correctly.\n'
                'Once imported, you can download the merged trades as a single CSV file for future imports. Nothing is stored on the server.')
@@ -118,7 +112,11 @@ def main():
     if (len(trades) > 0):
         trades_csv = trades_to_csv(trades)
         st.download_button('Download trades in single file', trades_csv, 'merged_trades.csv', 'text/csv')
-    st.button('Clear trades', on_click=lambda: st.session_state.pop('trades', None))
+    
+    def clear_uploads():
+        st.session_state.pop('file_uploader', None)
+        st.session_state.pop('trades', None)
+    st.button('Clear trades', on_click=lambda: clear_uploads())
     return
 
     # Load data
