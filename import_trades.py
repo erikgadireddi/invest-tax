@@ -83,6 +83,7 @@ def main():
     uploaded_files = st.file_uploader("Choose a file", accept_multiple_files=True, type=['csv'], 
                                       on_change=lambda: change_uploaded_files(trades), key=None, help='Upload IBKR Activity Statements or CSV files with trades.')
         
+    st.caption('To start, drop your IBKR Activity Statements here. You can export them using Statements->Activity on IBKR web. It allows a maximum of 365 days at a time, so you may need several exports. They can overlap and will be merged correctly.')
     import_state = st.caption('')
     trades_count = len(trades)
     loaded_count = 0
