@@ -3,9 +3,12 @@ import streamlit as st
 from streamlit_pills import pills
 import matchmaker.currency as currency
 import matchmaker.data as data 
+from menu import menu
+
+st.set_page_config(page_title='Prehled', layout='wide')
+menu()
 
 data.load_settings()
-st.set_page_config(page_title='Prehled', layout='wide')
 
 trades = st.session_state.trades if 'trades' in st.session_state else pd.DataFrame()
 year = st.session_state.year if 'year' in st.session_state else None

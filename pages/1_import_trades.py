@@ -1,15 +1,12 @@
 import pandas as pd
 import numpy as np
-import glob
 import argparse
-import os
-import json
-import sys
 import streamlit as st
 from matchmaker.trades import *
 from matchmaker.ibkr import *
 from matchmaker.pairing import *
 from matchmaker.currency import *
+from menu import menu
 import matchmaker.data as data
 
 streamlit = True
@@ -39,6 +36,7 @@ def import_trade_file(file):
 
 def main():
     st.set_page_config(page_title='Krutopřísný tradematcher', layout='centered')
+    menu()
     data.load_settings()
     # st.header('Taxonomy Matchmaker')
     st.subheader('Import Trades From IBKR Activity Statements')

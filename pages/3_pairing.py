@@ -4,10 +4,12 @@ from streamlit_pills import pills
 from matchmaker.pairing import pair_buy_sell, strategies
 import matchmaker.currency as currency
 import matchmaker.data as data 
+from menu import menu
 
 def page():
-    data.load_settings()
     st.set_page_config(page_title='Párování obchodů', layout='wide')
+    menu()
+    data.load_settings()
 
     trades = st.session_state.trades if 'trades' in st.session_state else pd.DataFrame()
     show_year = st.session_state.show_year if 'show_year' in st.session_state else None
