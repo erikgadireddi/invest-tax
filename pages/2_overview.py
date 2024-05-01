@@ -29,4 +29,5 @@ if trades is not None and not trades.empty:
                             'CZK Proceeds': st.column_config.NumberColumn("Proceeds CZK", format="%.1f"), 
                             'Accumulated Quantity': st.column_config.NumberColumn("Position")
                             })
-        st.caption(f'FIFO profit this year: :green[{trades[trades['Year'] == year]["CZK Profit"].sum():.2f}] CZK')
+        profit_czk = trades[trades['Year'] == year]['CZK Profit'].sum()
+        st.caption(f'FIFO profit this year: :green[{profit_czk:.2f}] CZK')
