@@ -71,7 +71,14 @@ def page():
                                         'CZK Proceeds': st.column_config.NumberColumn("Příjem v CZK", format="%.1f"), 
                                         'Accumulated Quantity': st.column_config.NumberColumn("Position")
                                         })
-        st.caption(f'Výdělek v CZK: :green[{pairs_in_czk["CZK Revenue"].sum():.2f}] CZK')
-
+        
+        unpaired_sells = sells[(sells['Year'] == show_year) & (sells['Uncovered Quantity'] != 0)]
+        footer = f'Výdělek v CZK: :green[{pairs_in_czk["CZK Revenue"].sum():.2f}] CZK'
+        if not unpaired_sells.empty:
+            footer += f' | Pozor, :red[{len(unpaired_sells)}] nenapárovaných prodejů!'
+        st.caption(footer)
+        if not unpaired_sells.empty:
+            st.subheader('Nenapárované obchody')
+            st.dataframe(unpaired_sells, hide_index=True)
 
 page()
