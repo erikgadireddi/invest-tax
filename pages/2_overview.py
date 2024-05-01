@@ -2,7 +2,9 @@ import pandas as pd
 import streamlit as st
 from streamlit_pills import pills
 import matchmaker.currency as currency
+import matchmaker.data as data 
 
+data.load_settings()
 st.set_page_config(page_title='Párování obchodů', layout='wide')
 
 trades = st.session_state.trades if 'trades' in st.session_state else pd.DataFrame()
@@ -15,9 +17,9 @@ else:
 
 daily_rates = currency.load_daily_rates(st.session_state['settings']['currency_rates_dir'])
 yearly_rates = currency.load_yearly_rates(st.session_state['settings']['currency_rates_dir'])
-currency.add_czk_conversion_to_trades(trades, daily_rates, use_yearly_rates=False)
 
 if trades is not None and not trades.empty:    
+    currency.add_czk_conversion_to_trades(trades, daily_rates, use_yearly_rates=False)
     years = trades['Year'].unique()
     year = int(pills('Select year to view', [str(year) for year in years]))
     st.session_state.update(year=year)

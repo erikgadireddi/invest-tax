@@ -10,6 +10,7 @@ from matchmaker.trades import *
 from matchmaker.ibkr import *
 from matchmaker.pairing import *
 from matchmaker.currency import *
+import matchmaker.data as data
 
 streamlit = True
 
@@ -25,11 +26,10 @@ def import_trades(directory, tickers_dir=None):
 
 def main():
     st.set_page_config(page_title='Krutopřísný tradematcher', layout='centered')
+    data.load_settings()
     # st.header('Taxonomy Matchmaker')
     st.subheader('Import Trades From IBKR Activity Statements')
-    # Load command-line arguments from commandline.json if exists
-    with open('settings.json') as f:
-        st.session_state['settings'] = json.load(f)
+
     
     # Process command-line arguments
     parser = argparse.ArgumentParser(description='Process command-line arguments')
