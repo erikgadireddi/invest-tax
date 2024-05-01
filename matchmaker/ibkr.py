@@ -3,8 +3,9 @@ import re
 from .data import hash_row
 from .trades import convert_trade_columns
 import pandas as pd
+import streamlit as st
 
-
+@st.cache_data()
 def import_activity_statement(file):
     column_names = ['Trades', 'Header', 'DataDiscriminator', 'Asset Category', 'Currency', 'Symbol', 'Date/Time', 'Quantity', 'T. Price', 'C. Price', 'Proceeds', 'Comm/Fee', 'Basis', 'Realized P/L', 'MTM P/L', 'Code', 'Extra']
     df = pd.read_csv(file, names=column_names)

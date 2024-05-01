@@ -16,6 +16,14 @@ def convert_trade_columns(df):
     df['Type'] = df.apply(lambda row: 'Long' if (row['Action'] == 'Open' and row['Quantity'] > 0) or (row['Action'] == 'Close' and row['Quantity'] < 0) else 'Short', axis=1)
     return df
 
+@st.cache_data()
+def import_raw_trades(file):
+    df = pd.read_csv(file)
+    df.set_index('Hash', inplace=True)
+    df = convert_trade_columns(df)
+    return df
+
+@st.cache_data()
 def merge_trades(existing, new):
     if existing is None:
         return new
@@ -54,6 +62,7 @@ def add_accumulated_positions(trades):
             accumulated += row['Quantity']
             trades.loc[index, 'Accumulated Quantity'] = accumulated
 
+@st.cache_data()
 def populate_extra_trade_columns(trades, tickers_dir=None):
     add_split_data(trades, tickers_dir)
     trades['Quantity'] = trades['Quantity'] * trades['Split Ratio']

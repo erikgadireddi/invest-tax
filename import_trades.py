@@ -24,6 +24,21 @@ def import_trades(directory, tickers_dir=None):
     populate_extra_trade_columns(merged, tickers_dir)
     return merged    
 
+def import_trade_file(file):
+    # Read first line to determine the format
+    header = file.readline()
+    header = header.decode('utf-8').strip()
+    file.seek(0)
+    try:
+        if header.startswith('Hash'):
+            return import_raw_trades(file)
+        else:
+            return import_activity_statement(file)
+    except Exception as e:
+        st.error(f'Error importing trades. File {file.name} does not contain the expected format. Error: {e}')
+        return pd.DataFrame()
+    
+
 def main():
     st.set_page_config(page_title='Krutopřísný tradematcher', layout='centered')
     data.load_settings()
@@ -55,8 +70,19 @@ def main():
     process_years = None
     preserve_years = None
 
+    # Load list of filenames from session state
+    previous_uploads = st.session_state.filenames if 'filenames' in st.session_state else []
+
     # Show file upload widget
     uploaded_files = st.file_uploader("Choose a file", accept_multiple_files=True, type=['csv'])
+    # Compare filenames to uploaded files.
+    if [f.name for f in uploaded_files] != previous_uploads:
+        # If less files were uploaded, we need to clear the trades. Until each row knows it source, reset it all
+        if len(uploaded_files) < len(previous_uploads):
+            trades = pd.DataFrame()
+    # Save newly uploaded files to session
+    st.session_state.filenames = [f.name for f in uploaded_files]
+        
     import_state = st.caption('')
     trades_count = len(trades)
     loaded_count = 0
@@ -64,7 +90,7 @@ def main():
     if uploaded_files:
         for uploaded_file in uploaded_files:
             import_state.write('Importing trades...')
-            imported = import_activity_statement(uploaded_file)
+            imported = import_trade_file(uploaded_file)
             loaded_count += len(imported)
             import_state.write(f'Merging :blue[{len(imported)}] trades...')
             trades = merge_trades(trades, imported)
@@ -77,7 +103,20 @@ def main():
     st.session_state.trades = trades
     st.caption(f'Trades found: :blue[{len(trades)}]')
     st.dataframe(data=trades, hide_index=True, width=1100, height=500, column_order=('Symbol', 'Date/Time', 'Quantity', 'Currency', 'T. Price', 'Proceeds', 'Comm/Fee', 'Realized P/L', 'Accumulated Quantity'),
-                    column_config={'Realized P/L': st.column_config.NumberColumn("Profit", format="%.1f"), 'Accumulated Quantity': st.column_config.NumberColumn("Position")})
+                    column_config={
+                        'Realized P/L': st.column_config.NumberColumn("Profit", format="%.1f"), 
+                        'Proceeds': st.column_config.NumberColumn("Proceeds", format="%.1f"), 
+                        'Comm/Fee': st.column_config.NumberColumn("Fees", format="%.1f"), 
+                        'Quantity': st.column_config.NumberColumn("Quantity", format="%f"), 
+                        'Accumulated Quantity': st.column_config.NumberColumn("Position", format="%f")})
+
+    # Serve merged trades as CSV    
+    @st.cache_data()
+    def trades_to_csv(trades):
+        return trades.to_csv().encode('utf-8')    
+    if (len(trades) > 0):
+        trades_csv = trades_to_csv(trades)
+        st.download_button('Download trades in single file', trades_csv, 'merged_trades.csv', 'text/csv')
     return
 
     # Load data
