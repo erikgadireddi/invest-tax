@@ -13,6 +13,8 @@ def dataframe_from_lines_with_prefix(file, prefix):
     file = [line.decode('utf-8') for line in file]
     # Filter file lines to those beginning with 'Trades'
     file_lines = [line for line in file if line.startswith(prefix)]
+    if len(file_lines) == 0:
+        return pd.DataFrame(columns=['Corporate Actions', 'Header', 'Asset Category', 'Date/Time', 'Currency', 'Symbol', 'Quantity', 'Ratio', 'Description', 'Proceeds', 'Value', 'Realized P/L', 'Action', 'Code'])
     file_data = StringIO('\n'.join(file_lines))
     return pd.read_csv(file_data)
 
@@ -75,8 +77,13 @@ def import_corporate_actions(file):
             return float(after) / before
         return np.nan
     
+    df['Realized P/L'] = pd.to_numeric(df['Realized P/L'], errors='coerce')
+    df['Proceeds'] = pd.to_numeric(df['Proceeds'], errors='coerce')
+    df['Value'] = pd.to_numeric(df['Value'], errors='coerce')
+    df['Quantity'] = pd.to_numeric(df['Quantity'].astype(str).str.replace(',', ''), errors='coerce')
+    df['Date/Time'] = pd.to_datetime(df['Date/Time'], format='%Y-%m-%d, %H:%M:%S')
     df['Symbol'] = df['Description'].apply(lambda x: parse_action_symbol(x))    
-    df['Amount'] = df[df['Action'] == 'Split']['Description'].apply(lambda x: get_split_ratio(x))
+    df['Ratio'] = df[df['Action'] == 'Split']['Description'].apply(lambda x: get_split_ratio(x))
     return df
 
 @st.cache_data()

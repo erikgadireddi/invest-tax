@@ -81,23 +81,28 @@ def main():
     import_state = st.caption('')
     trades_count = len(trades)
     loaded_count = 0
+    corporate_actions = pd.DataFrame()
     # On upload, run import trades
     if uploaded_files:
         for uploaded_file in uploaded_files:
             import_state.write('Importing trades...')
             imported_trades, imported_actions = import_trade_file(uploaded_file)
+            corporate_actions = pd.concat([imported_actions, corporate_actions])
             loaded_count += len(imported_trades)
             import_state.write(f'Merging :blue[{len(imported_trades)}] trades...')
             trades = merge_trades(trades, imported_trades)
             import_message = f'Imported :green[{len(trades) - trades_count}] trades.'
-            populate_extra_trade_columns(trades, st.session_state['settings']['tickers_dir'])
             st.session_state.trades = trades
             import_state.write(import_message)
         import_state.write(f'Total trades loaded: :blue[{loaded_count}] of which :green[{len(trades) - trades_count}] were new.')
     # Show the parsed trades
     st.session_state.trades = trades
     st.caption(f'Trades found: :blue[{len(trades)}]')
-    st.dataframe(data=trades, hide_index=True, width=1100, height=500, column_order=('Symbol', 'Date/Time', 'Quantity', 'Currency', 'T. Price', 'Proceeds', 'Comm/Fee', 'Realized P/L', 'Accumulated Quantity'),
+    if len(trades) > 0:
+        adjust_for_splits(trades, corporate_actions)
+        populate_extra_trade_columns(trades)
+        trades.sort_values(by=['Symbol', 'Date/Time'], inplace=True)
+    st.dataframe(data=trades, hide_index=True, width=1100, height=500, column_order=('Symbol', 'Date/Time', 'Quantity', 'Currency', 'T. Price', 'Proceeds', 'Comm/Fee', 'Realized P/L', 'Accumulated Quantity', 'Split Ratio'),
                     column_config={
                         'Realized P/L': st.column_config.NumberColumn("Profit", format="%.1f"), 
                         'Proceeds': st.column_config.NumberColumn("Proceeds", format="%.1f"), 

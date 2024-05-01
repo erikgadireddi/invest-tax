@@ -30,29 +30,16 @@ def merge_trades(existing, new):
     merged = pd.concat([existing, new])
     return merged[~merged.index.duplicated(keep='first')]
 
-def add_split_data(trades, tickers_dir):
+def add_split_data(trades, split_actions):
+    split_actions = split_actions[split_actions['Action'] == 'Split']
     if 'Split Ratio' not in trades.columns:
         trades['Split Ratio'] = np.nan
-    if tickers_dir is not None:
-        for symbol, group in trades.groupby('Symbol'):
-            filename = tickers_dir + '/' + symbol + '_data.csv'
-            if os.path.exists(filename):
-                try:
-                    ticker = pd.read_csv(tickers_dir + '/' + symbol + '_data.csv')
-                    ticker['Date'] = pd.to_datetime(ticker['Date'], format='%Y-%m-%d').dt.date
-                    ticker.set_index('Date', inplace=True)
-                    for index, row in group[group['Split Ratio']==np.nan].iterrows():
-                        ratio = 1
-                        try:
-                            ratio = ticker.loc[pd.to_datetime(row['Date/Time']).date(), 'Adj Ratio']
-                        except KeyError:
-                            print('No split data for', symbol, 'on', pd.to_datetime(row['Date/Time']).date())
-                        trades.loc[index, 'Split Ratio'] = ratio
-                        if ratio != 1:
-                            print('Adjusted quantity for', symbol, 'from', row['Quantity'], 'to',  row['Quantity'] * ratio, ', ratio:', ratio)
-                    
-                except Exception as e:
-                    print('Error reading', filename, ':', e)
+    if not split_actions.empty:
+        # Enhance trades with Split Ratio column by looking up same symbol in split_actions
+        #  and summing all ratio columns that have a date sooner than the row in trades    
+        split_actions = split_actions.sort_values(by='Date/Time', ascending=True)
+        split_actions['Cumulative Ratio'] = split_actions.groupby('Symbol')['Ratio'].cumprod()
+        trades['Split Ratio'] = 1 / trades.apply(lambda row: split_actions[(split_actions['Symbol'] == row['Symbol']) & (split_actions['Date/Time'] > row['Date/Time'])]['Cumulative Ratio'].min(), axis=1)
     trades.fillna({'Split Ratio': 1}, inplace=True)
 
 def add_accumulated_positions(trades):
@@ -63,10 +50,14 @@ def add_accumulated_positions(trades):
             trades.loc[index, 'Accumulated Quantity'] = accumulated
 
 @st.cache_data()
-def populate_extra_trade_columns(trades, tickers_dir=None):
-    add_split_data(trades, tickers_dir)
-    trades['Quantity'] = trades['Quantity'] * trades['Split Ratio']
-    trades['T. Price'] = trades['T. Price'] / trades['Split Ratio']
+def populate_extra_trade_columns(trades):
     add_accumulated_positions(trades)
     trades = trades.sort_values(by=['Date/Time'])
 
+@st.cache_data()
+def adjust_for_splits(trades, split_actions):
+    if split_actions is not None:
+        add_split_data(trades, split_actions)
+        trades['Quantity'] = trades['Quantity'] * trades['Split Ratio']
+        trades['T. Price'] = trades['T. Price'] / trades['Split Ratio']
+    return trades
