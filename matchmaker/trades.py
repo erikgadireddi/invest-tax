@@ -42,17 +42,17 @@ def add_split_data(trades, split_actions):
         trades['Split Ratio'] = 1 / trades.apply(lambda row: split_actions[(split_actions['Symbol'] == row['Symbol']) & (split_actions['Date/Time'] > row['Date/Time'])]['Cumulative Ratio'].min(), axis=1)
     trades.fillna({'Split Ratio': 1}, inplace=True)
 
+@st.cache_data()
 def add_accumulated_positions(trades):
-    for symbol, group in trades.groupby('Symbol'):
-        accumulated = 0
-        for index, row in group.sort_values(by=['Date/Time']).iterrows():
-            accumulated += row['Quantity']
-            trades.loc[index, 'Accumulated Quantity'] = accumulated
+    trades = trades.sort_values(by=['Date/Time'])
+    trades['Accumulated Quantity'] = trades.groupby('Symbol')['Quantity'].cumsum()
+    return trades
 
 @st.cache_data()
 def populate_extra_trade_columns(trades):
-    add_accumulated_positions(trades)
+    trades = add_accumulated_positions(trades)
     trades = trades.sort_values(by=['Date/Time'])
+    return trades
 
 @st.cache_data()
 def adjust_for_splits(trades, split_actions):

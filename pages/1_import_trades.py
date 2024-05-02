@@ -16,7 +16,7 @@ def import_trades(directory, tickers_dir=None):
     merged = None
     for trades in import_all_statements(directory, tickers_dir):
         merged = merge_trades(merged, trades)
-    populate_extra_trade_columns(merged, tickers_dir)
+    merged = populate_extra_trade_columns(merged, tickers_dir)
     return merged    
 
 def import_trade_file(file):
@@ -67,7 +67,8 @@ def main():
     preserve_years = None
 
     def change_uploaded_files(trades, previous_uploads):
-        trades.drop(trades.index, inplace=True)
+        if len(previous_uploads) > 0:
+            trades.drop(trades.index, inplace=True)
         
     # Show file upload widget
     uploaded_files = st.file_uploader("Choose a file", accept_multiple_files=True, type=['csv'], 
@@ -95,26 +96,48 @@ def main():
             st.session_state.trades = trades
             import_state.write(import_message)
         import_state.write(f'Total trades loaded: :blue[{loaded_count}] of which :green[{len(trades) - trades_count}] were new.')
-    # Show the parsed trades
-    st.session_state.trades = trades
+        if len(trades) > 0:
+            adjust_for_splits(trades, actions)
+            trades = populate_extra_trade_columns(trades)
+            trades.sort_values(by=['Symbol', 'Date/Time'], inplace=True)
+        st.session_state.trades = trades
+    
     # Deduplicate actions that contain the exact same data, ignoring index
     actions.drop_duplicates(inplace=True)
     st.session_state.actions = actions
 
-    st.caption(f'Trades found: :blue[{len(trades)}]')
-    if len(trades) > 0:
-        adjust_for_splits(trades, actions)
-        populate_extra_trade_columns(trades)
-        trades.sort_values(by=['Symbol', 'Date/Time'], inplace=True)
+    # Show imported trades
+    st.caption(f':blue[{len(trades)}] nalezených obchodů.')
     st.dataframe(data=trades, hide_index=True, width=1100, height=500, column_order=('Symbol', 'Date/Time', 'Quantity', 'Currency', 'T. Price', 'Proceeds', 'Comm/Fee', 'Realized P/L', 'Accumulated Quantity', 'Split Ratio'),
                     column_config={
                         'Realized P/L': st.column_config.NumberColumn("Profit", format="%.1f"), 
-                        'Proceeds': st.column_config.NumberColumn("Proceeds", format="%.1f"), 
-                        'Comm/Fee': st.column_config.NumberColumn("Fees", format="%.1f"), 
-                        'Quantity': st.column_config.NumberColumn("Quantity", format="%f"), 
-                        'Accumulated Quantity': st.column_config.NumberColumn("Position", format="%f")})
+                        'Proceeds': st.column_config.NumberColumn("Objem", format="%.1f"), 
+                        'Comm/Fee': st.column_config.NumberColumn("Poplatky", format="%.1f"), 
+                        'Quantity': st.column_config.NumberColumn("Počet", help="Počet kusů daného instrumentu", format="%f"), 
+                        'Accumulated Quantity': st.column_config.NumberColumn("Pozice", help="Otevřené pozice po této transakci. Negativní znamenají shorty. "
+                                                                                "Pokud toto číslo nesedí s realitou, v importovaných transakcích se nenacházejí všechny obchody", format="%f"),
+                        'Split Ratio': st.column_config.NumberColumn("Split", help="Poměr akcií po splitu", format="%f"),})
 
-    st.dataframe(data=actions, hide_index=True)
+    # Show imported splits
+    if len(actions) > 0:
+        splits = actions[actions['Action'] == 'Split']
+        splits['Reverse Ratio'] = 1 / splits['Ratio']
+        if len(splits) > 0:
+            with st.expander(f'Splity, které budou započítány (:blue[{len(splits)}])'):
+                st.dataframe(data=splits, hide_index=True, 
+                            column_order=('Symbol', 'Date/Time', 'Reverse Ratio'),
+                            column_config={
+                                "Date/Time": st.column_config.DatetimeColumn("Datum", help="Čas splitu"),
+                                'Reverse Ratio': st.column_config.NumberColumn("Poměr", help="Počet akcií, na které byla jedna akcie rozdělena", format="%f")})
+        unparsed = actions[actions['Action'] == 'Unknown']
+        if len(unparsed) > 0:
+            with st.expander(f'Korporátní akce, které nebudou započítány (:blue[{len(unparsed)}])'):
+                st.dataframe(data=unparsed, hide_index=True, 
+                             column_order=('Symbol', 'Date/Time', 'Description'),
+                             column_config={
+                                 "Date/Time": st.column_config.DatetimeColumn("Datum", help="Čas akce"),
+                                 'Description': st.column_config.NumberColumn("Popis", help="Textový popis akce")})
+    
     # Serve merged trades as CSV    
     @st.cache_data()
     def trades_to_csv(trades):
@@ -126,6 +149,7 @@ def main():
     def clear_uploads():
         st.session_state.pop('file_uploader', None)
         st.session_state.pop('trades', None)
+        st.session_state.pop('actions', None)
     st.button('Clear trades', on_click=lambda: clear_uploads())
     return
 
