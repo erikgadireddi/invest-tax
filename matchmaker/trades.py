@@ -56,7 +56,7 @@ def populate_extra_trade_columns(trades):
 
 @st.cache_data()
 def adjust_for_splits(trades, split_actions):
-    if split_actions is not None:
+    if split_actions is not None and not split_actions.empty:
         add_split_data(trades, split_actions)
         trades['Quantity'] = trades['Quantity'] * trades['Split Ratio']
         trades['T. Price'] = trades['T. Price'] / trades['Split Ratio']
