@@ -61,6 +61,7 @@ def main():
     args = parser.parse_args()
 
     trades = st.session_state.trades if 'trades' in st.session_state else pd.DataFrame()
+    actions = st.session_state.actions if 'actions' in st.session_state else pd.DataFrame()
     sell_buy_pairs = None
     process_years = None
     preserve_years = None
@@ -81,13 +82,12 @@ def main():
     import_state = st.caption('')
     trades_count = len(trades)
     loaded_count = 0
-    corporate_actions = pd.DataFrame()
     # On upload, run import trades
     if uploaded_files:
         for uploaded_file in uploaded_files:
             import_state.write('Importing trades...')
             imported_trades, imported_actions = import_trade_file(uploaded_file)
-            corporate_actions = pd.concat([imported_actions, corporate_actions])
+            actions = pd.concat([imported_actions, actions])
             loaded_count += len(imported_trades)
             import_state.write(f'Merging :blue[{len(imported_trades)}] trades...')
             trades = merge_trades(trades, imported_trades)
@@ -97,9 +97,13 @@ def main():
         import_state.write(f'Total trades loaded: :blue[{loaded_count}] of which :green[{len(trades) - trades_count}] were new.')
     # Show the parsed trades
     st.session_state.trades = trades
+    # Deduplicate actions that contain the exact same data, ignoring index
+    actions.drop_duplicates(inplace=True)
+    st.session_state.actions = actions
+
     st.caption(f'Trades found: :blue[{len(trades)}]')
     if len(trades) > 0:
-        adjust_for_splits(trades, corporate_actions)
+        adjust_for_splits(trades, actions)
         populate_extra_trade_columns(trades)
         trades.sort_values(by=['Symbol', 'Date/Time'], inplace=True)
     st.dataframe(data=trades, hide_index=True, width=1100, height=500, column_order=('Symbol', 'Date/Time', 'Quantity', 'Currency', 'T. Price', 'Proceeds', 'Comm/Fee', 'Realized P/L', 'Accumulated Quantity', 'Split Ratio'),
@@ -110,6 +114,7 @@ def main():
                         'Quantity': st.column_config.NumberColumn("Quantity", format="%f"), 
                         'Accumulated Quantity': st.column_config.NumberColumn("Position", format="%f")})
 
+    st.dataframe(data=actions, hide_index=True)
     # Serve merged trades as CSV    
     @st.cache_data()
     def trades_to_csv(trades):

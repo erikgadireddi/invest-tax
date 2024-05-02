@@ -10,7 +10,7 @@
             "request": "launch",
             "module": "streamlit",
             "console": "integratedTerminal",
-            "args": ["run", "Taxes.py", "--server.enableXsrfProtection", "false"],
+            "args": ["run", "app.py", "--server.enableXsrfProtection", "false"],
         }
     ]
 }
