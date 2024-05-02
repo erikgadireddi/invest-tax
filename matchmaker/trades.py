@@ -40,6 +40,7 @@ def add_split_data(trades, split_actions):
         split_actions = split_actions.sort_values(by='Date/Time', ascending=True)
         split_actions['Cumulative Ratio'] = split_actions.groupby('Symbol')['Ratio'].cumprod()
         trades['Split Ratio'] = 1 / trades.apply(lambda row: split_actions[(split_actions['Symbol'] == row['Symbol']) & (split_actions['Date/Time'] > row['Date/Time'])]['Cumulative Ratio'].min(), axis=1)
+        split_actions.drop(columns=['Cumulative Ratio'], inplace=True)
     trades.fillna({'Split Ratio': 1}, inplace=True)
 
 @st.cache_data()
@@ -58,6 +59,6 @@ def populate_extra_trade_columns(trades):
 def adjust_for_splits(trades, split_actions):
     if split_actions is not None and not split_actions.empty:
         add_split_data(trades, split_actions)
-        trades['Quantity'] = trades['Quantity'] * trades['Split Ratio']
-        trades['T. Price'] = trades['T. Price'] / trades['Split Ratio']
+        trades['Quantity'] = trades['Orig. Quantity'] * trades['Split Ratio']
+        trades['T. Price'] = trades['Orig. T. Price'] / trades['Split Ratio']
     return trades

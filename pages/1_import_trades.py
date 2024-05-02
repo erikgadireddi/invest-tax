@@ -95,7 +95,10 @@ def main():
             import_message = f'Imported :green[{len(trades) - trades_count}] trades.'
             st.session_state.trades = trades
             import_state.write(import_message)
+
         import_state.write(f'Total trades loaded: :blue[{loaded_count}] of which :green[{len(trades) - trades_count}] were new.')
+        actions.drop_duplicates(inplace=True)
+
         if len(trades) > 0:
             adjust_for_splits(trades, actions)
             trades = populate_extra_trade_columns(trades)
@@ -103,7 +106,6 @@ def main():
         st.session_state.trades = trades
     
     # Deduplicate actions that contain the exact same data, ignoring index
-    actions.drop_duplicates(inplace=True)
     st.session_state.actions = actions
 
     # Show imported trades

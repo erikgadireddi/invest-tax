@@ -45,8 +45,11 @@ def import_trades(file):
     df['Date/Time'] = pd.to_datetime(df['Date/Time'], format='%Y-%m-%d, %H:%M:%S')
     df['Year'] = df['Date/Time'].dt.year
     df['Quantity'] = pd.to_numeric(df['Quantity'].astype(str).str.replace(',', ''), errors='coerce')
+
     # Convert the rest
     df = convert_trade_columns(df)
+    df['Orig. Quantity'] = df['Quantity']
+    df['Orig. T. Price'] = df['T. Price']
     # Set up the hash column as index
     df['Hash'] = df.apply(hash_row, axis=1)
     df.set_index('Hash', inplace=True)
