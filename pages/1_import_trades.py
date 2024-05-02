@@ -140,19 +140,23 @@ def main():
                                  "Date/Time": st.column_config.DatetimeColumn("Datum", help="Čas akce"),
                                  'Description': st.column_config.NumberColumn("Popis", help="Textový popis akce")})
     
+    col1, spacer, col2 = st.columns([0.3, 0.3, 0.2])
     # Serve merged trades as CSV    
-    @st.cache_data()
-    def trades_to_csv(trades):
-        return trades.to_csv().encode('utf-8')    
     if (len(trades) > 0):
+        @st.cache_data()
+        def trades_to_csv(trades):
+            return trades.to_csv().encode('utf-8')    
         trades_csv = trades_to_csv(trades)
-        st.download_button('Download trades in single file', trades_csv, 'merged_trades.csv', 'text/csv')
+        with col1:
+            st.download_button('📩 Stáhnout vše v CSV', trades_csv, 'merged_trades.csv', 'text/csv', use_container_width=True)
     
     def clear_uploads():
         st.session_state.pop('file_uploader', None)
         st.session_state.pop('trades', None)
         st.session_state.pop('actions', None)
-    st.button('Clear trades', on_click=lambda: clear_uploads())
+    with col2:
+        st.button('🧹 Smazat obchody', on_click=lambda: clear_uploads(), use_container_width=True)
+    
     return
 
     # Load data
