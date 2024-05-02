@@ -20,13 +20,9 @@ def import_trades(directory, tickers_dir=None):
     return merged    
 
 def import_trade_file(file):
-    # Read first line to determine the format
-    header = file.readline()
-    header = header.decode('utf-8').strip()
-    file.seek(0)
     try:
-        if header.startswith('Hash'):
-            return import_raw_trades(file)
+        if data.is_snapshot(file):
+            return data.load_snapshot(file)
         else:
             return import_activity_statement(file)
     except Exception as e:
@@ -125,7 +121,7 @@ def main():
         splits = actions[actions['Action'] == 'Split']
         splits['Reverse Ratio'] = 1 / splits['Ratio']
         if len(splits) > 0:
-            with st.expander(f'Splity, které budou započítány (:blue[{len(splits)}])'):
+            with st.expander(f'Splity, kterým rozumíme (:blue[{len(splits)}])'):
                 st.dataframe(data=splits, hide_index=True, 
                             column_order=('Symbol', 'Date/Time', 'Reverse Ratio'),
                             column_config={
@@ -133,7 +129,7 @@ def main():
                                 'Reverse Ratio': st.column_config.NumberColumn("Poměr", help="Počet akcií, na které byla jedna akcie rozdělena", format="%f")})
         unparsed = actions[actions['Action'] == 'Unknown']
         if len(unparsed) > 0:
-            with st.expander(f'Korporátní akce, které nebudou započítány (:blue[{len(unparsed)}])'):
+            with st.expander(f'Korporátní akce, kterým ne (:blue[{len(unparsed)}])'):
                 st.dataframe(data=unparsed, hide_index=True, 
                              column_order=('Symbol', 'Date/Time', 'Description'),
                              column_config={
@@ -142,19 +138,16 @@ def main():
     
     col1, spacer, col2 = st.columns([0.3, 0.3, 0.2])
     # Serve merged trades as CSV    
-    if (len(trades) > 0):
-        @st.cache_data()
-        def trades_to_csv(trades):
-            return trades.to_csv().encode('utf-8')    
-        trades_csv = trades_to_csv(trades)
-        with col1:
-            st.download_button('📩 Stáhnout vše v CSV', trades_csv, 'merged_trades.csv', 'text/csv', use_container_width=True)
-    
-    def clear_uploads():
-        st.session_state.pop('file_uploader', None)
-        st.session_state.pop('trades', None)
-        st.session_state.pop('actions', None)
+    with col1:
+        if (len(trades) > 0):
+            trades_csv = data.save_snapshot(trades, actions).encode('utf-8')
+            st.download_button('📩 Stáhnout vše v CSV', trades_csv, 'merged_trades.csv', 'text/csv', use_container_width=True, help='Stažením dostanete celý stav výpočtu pro další použití. Stačí příště přetáhnout do importu pro pokračování.')
+    # Clear uploaded files
     with col2:
+        def clear_uploads():
+            st.session_state.pop('file_uploader', None)
+            st.session_state.pop('trades', None)
+            st.session_state.pop('actions', None)
         st.button('🧹 Smazat obchody', on_click=lambda: clear_uploads(), use_container_width=True)
     
     return

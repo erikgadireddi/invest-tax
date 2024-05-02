@@ -1,12 +1,12 @@
 import glob
 import re
-
+import pandas as pd
+import streamlit as st
 import numpy as np
 from .data import hash_row
 from .trades import convert_trade_columns
+import matchmaker.actions as actions
 from io import StringIO
-import pandas as pd
-import streamlit as st
 
 def dataframe_from_lines_with_prefix(file, prefix):
     file.seek(0)
@@ -80,13 +80,11 @@ def import_corporate_actions(file):
             return float(after) / before
         return np.nan
     
-    df['Realized P/L'] = pd.to_numeric(df['Realized P/L'], errors='coerce')
-    df['Proceeds'] = pd.to_numeric(df['Proceeds'], errors='coerce')
-    df['Value'] = pd.to_numeric(df['Value'], errors='coerce')
     df['Quantity'] = pd.to_numeric(df['Quantity'].astype(str).str.replace(',', ''), errors='coerce')
     df['Date/Time'] = pd.to_datetime(df['Date/Time'], format='%Y-%m-%d, %H:%M:%S')
     df['Symbol'] = df['Description'].apply(lambda x: parse_action_symbol(x))    
     df['Ratio'] = df[df['Action'] == 'Split']['Description'].apply(lambda x: get_split_ratio(x))
+    df = actions.convert_action_columns(df)
     return df
 
 @st.cache_data()
