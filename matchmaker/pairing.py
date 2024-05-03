@@ -33,16 +33,16 @@ def fill_trades_covered_quantity(trades, sell_buy_pairs):
     return trades
 
 @st.cache_data()
-def pair_buy_sell(trades, pairs, strategy, process_years=None, preserve_years=None):
+def pair_buy_sell(trades, pairs, strategy, from_year=None):
     # Group all trades by Symbol into a new DataFrame
     # For each sell order (negative Proceeds), find enough corresponding buy orders (positive Proceeds) with the same Symbol to cover the sell order
     # Buy orders must be before the sell orders in time (Date/Time) and must have enough Quantity to cover the sell order
     # From the buy orders, compute the average price (T. Price) for the amount to cover the sell order and add it to the sell order as 'Covered Price'
     # If a sell order is not covered by any buy orders, it is ignored
     
-    # Drop all rows from pairs that are not in preserve_years
-    if preserve_years is not None:
-        pairs = pairs[pairs['Sell Time'].dt.year.isin(preserve_years)]
+    # Drop all rows from pairs that are after the from_year
+    if from_year is not None and pairs is not None and not pairs.empty:
+        pairs = pairs[pairs['Sell Time'].dt.year < from_year]
     
     trades = fill_trades_covered_quantity(trades, pairs)
     # trades.round(3).to_csv('paired.order.quantities.csv')
@@ -57,7 +57,7 @@ def pair_buy_sell(trades, pairs, strategy, process_years=None, preserve_years=No
         # For each sell order, find enough buy orders to cover it
         for index_s, sell in sells.iterrows():
             # If already paired, skip
-            if sell['Uncovered Quantity'] == 0 or (process_years is not None and sell['Year'] not in process_years):
+            if sell['Uncovered Quantity'] == 0 or sell['Year'] < from_year:
                 continue
             
             if strategy == 'LIFO':
