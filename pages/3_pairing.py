@@ -34,23 +34,29 @@ def page():
             match_config[year] = {'strategy': 'FIFO', 'yearly_rates': True}
 
     st.caption(str(len(trades)) + ' obchodů k dispozici.')
-    show_year = int(pills('Rok', [str(year) for year in years], index=years.index(show_year)))
+    show_year = int(pills('Rok', [str(year) for year in years], key='show_year'))
     this_config = match_config[show_year]
     this_config['strategy'] = pills('Strategie párování', strategies, index=strategies.index(this_config['strategy']), key=f'strategy_{show_year}')
     this_config['yearly_rates'] = pills(f'Použíté kurzy', ['roční', 'denní'], index=0 if this_config['yearly_rates'] else 1, key=f'yearly_rates_{show_year}') == 'roční'
-    st.session_state.update(match_config=match_config)
-    
     show_strategy = match_config[show_year]['strategy']
-    st.session_state.update(show_year=show_year)
-    st.session_state.update(year_config=match_config)
     st.caption(f'Strategie pro rok {show_year}: {show_strategy} | {"roční" if this_config["yearly_rates"] else "denní"} kurzy')
-    # Create a list of all years except the one selected
     
-    if previous_config != match_config:
+    # Needs recompute only if strategy changed
+    need_recompute = False
+    for year in years:
+        if match_config[year]['strategy'] != previous_config[year]['strategy']:
+            need_recompute = True
+            break
+    if need_recompute:
         buys, sells, paired_trades = pair_buy_sell(trades, paired_trades, show_strategy, show_year)
         st.session_state.update(buys=buys)
         st.session_state.update(sells=sells)
         st.session_state.update(paired_trades=paired_trades)
+        # Update all higher years to use the same strategy
+        for year in years[years.index(show_year)+1:]:
+            match_config[year]['strategy'] = this_config['strategy']
+
+    st.session_state.update(match_config=match_config)
     
     if this_config['yearly_rates']:
         yearly_rates = currency.load_yearly_rates(st.session_state['settings']['currency_rates_dir'])
