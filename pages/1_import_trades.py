@@ -96,7 +96,7 @@ def main():
         actions.drop_duplicates(inplace=True)
 
         if len(trades) > 0:
-            adjust_for_splits(trades, actions)
+            trades = adjust_for_splits(trades, actions)
             trades = populate_extra_trade_columns(trades)
             trades.sort_values(by=['Symbol', 'Date/Time'], inplace=True)
         st.session_state.trades = trades

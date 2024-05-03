@@ -29,9 +29,8 @@ if trades is not None and not trades.empty:
     st.session_state.update(year=year)
     st.caption(f'Vysvětlivky k jednotlivým sloupcům jsou k dispozici na najetí myší.')
     shown_trades = trades[trades['Year'] == year] if year is not None else trades
-    trades_display = st.dataframe(shown_trades, hide_index=True, height=600, 
-                    column_order=('Symbol', 'Date/Time', 'Quantity', 'Currency', 'T. Price', 'Comm/Fee', 'CZK Proceeds', 'CZK Fee', 'CZK Profit', 'Accumulated Quantity', 'Action', 'Type'),
-                    column_config={
+    column_order = ('Symbol', 'Date/Time', 'Quantity', 'Currency', 'T. Price', 'Comm/Fee', 'CZK Proceeds', 'CZK Fee', 'CZK Profit', 'Accumulated Quantity', 'Action', 'Type')
+    column_config = {
                         'Currency': st.column_config.TextColumn("Měna", help="Měna v které bylo obchodováno"), 
                         'Quantity': st.column_config.NumberColumn("Počet", help="Počet kusů daného instrumentu", format="%f"), 
                         'Date/Time': st.column_config.DatetimeColumn("Čas transakce", help="Datum a čas transakce"), 
@@ -45,15 +44,16 @@ if trades is not None and not trades.empty:
                                                                                 "Pokud toto číslo nesedí s realitou, v importovaných transakcích se nenacházejí všechny obchody", format="%f"), 
                         'Action': st.column_config.TextColumn("Akce", help="Otevření nebo uzavření pozice. Shorty začínají prodejem a končí nákupem."),
                         'Type': st.column_config.TextColumn("Typ", help="Long nebo short pozice. Long pozice je standardní nákup instrumentu pro pozdější prodej s očekáváním zvýšení ceny. Short pozice je prodej instrumentu, který ještě nevlastníte, s očekáváním poklesu ceny a následného nákupu.")
-                        })
+                    }
+    trades_display = st.dataframe(shown_trades, hide_index=True, column_order=column_order, column_config=column_config)
     profit_czk = trades[trades['Year'] == year]['CZK Profit'].sum() if year is not None else trades['CZK Profit'].sum()
     if year is not None:
-        st.caption(f'FIFO profit this year: :green[{profit_czk:.2f}] CZK') 
+        st.caption(f'Profit tento rok dle brokera: :green[{profit_czk:.0f}] CZK') 
     else: 
-        st.caption(f'FIFO profit: :green[{profit_czk:.2f}] CZK')
+        st.caption(f'Profit dle brokera: :green[{profit_czk:.0f}] CZK')
         
     suspicious_positions = shown_trades[((shown_trades['Accumulated Quantity'] < 0) & (shown_trades['Type'] == 'Long') & (shown_trades['Action'] == 'Close') | 
                                          (shown_trades['Accumulated Quantity'] > 0) & (shown_trades['Type'] == 'Short') & (shown_trades['Action'] == 'Close'))]
     if len(suspicious_positions) > 0:
-        st.caption('Negative positions detected on long positions. Your data may be incomplete. Please check your imports.')
-        st.dataframe(suspicious_positions, hide_index=True)
+        st.caption('Historie obsahuje long transakce vedoucí k negativním pozicím. Je možné, že nebyly nahrány všechny obchody či korporátní akce. Zkontrolujte, prosím, zdrojová data a případně doplňte chybějící transakce.')
+        st.dataframe(suspicious_positions, hide_index=True, column_order=column_order, column_config=column_config)

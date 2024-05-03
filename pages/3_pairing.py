@@ -23,7 +23,7 @@ def page():
     #  strategy: FIFO, LIFO, AverageCost, MaxLoss, MaxProfit
     #  use_yearly_rates: bool
     strategies = ['FIFO', 'LIFO', 'AverageCost', 'MaxLoss', 'MaxProfit']
-    years = trades['Year'].unique()
+    years = sorted(trades['Year'].unique())
     for year in years:
         if year not in year_config:
             year_config[year] = {'strategy': 'FIFO', 'yearly_rates': True}
@@ -37,7 +37,7 @@ def page():
         show_strategy = year_config[show_year]['strategy']
         st.session_state.update(show_year=show_year)
         st.session_state.update(year_config=year_config)
-        st.caption(f'Strategy for {show_year}: {show_strategy}')
+        st.caption(f'Strategie pro rok {show_year}: {show_strategy} | {"roční" if this_config["yearly_rates"] else "denní"} kurzy')
         # Create a list of all years except the one selected
         other_years = [str(y) for y in years if y != show_year]
         buys, sells, sell_buy_pairs = pair_buy_sell(trades, pd.DataFrame(), show_strategy)
@@ -74,7 +74,11 @@ def page():
                                         })
         
         unpaired_sells = sells[(sells['Year'] == show_year) & (sells['Uncovered Quantity'] != 0)]
-        footer = f'Výdělek v CZK: :green[{filtered_pairs[filtered_pairs['Taxable'] == 1]["CZK Revenue"].sum():.2f}] CZK'
+        footer = f'Danitelný výdělek v CZK: :blue[{filtered_pairs[filtered_pairs['Taxable'] == 1]["CZK Revenue"].sum():.2f}] CZK'
+        untaxed_revenue = filtered_pairs[filtered_pairs['Taxable'] == 0]['CZK Revenue'].sum()
+        if untaxed_revenue > 0:
+            footer += f' | Osvobozený výdělek v CZK: :green[{untaxed_revenue:.2f}] CZK'
+        
         if not unpaired_sells.empty:
             footer += f' | Pozor, :red[{len(unpaired_sells)}] nenapárovaných prodejů!'
         st.caption(footer)
