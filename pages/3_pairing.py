@@ -19,7 +19,6 @@ def page():
     buys = st.session_state.buys if 'buys' in st.session_state else pd.DataFrame()
     sells = st.session_state.sells if 'sells' in st.session_state else pd.DataFrame()
     previous_config = copy.deepcopy(match_config)
-
     if trades.empty:
         st.write('No trades loaded. Import some first.')
         return
@@ -32,7 +31,7 @@ def page():
     for year in years:
         if year not in match_config:
             match_config[year] = {'strategy': 'FIFO', 'yearly_rates': True}
-
+    
     st.caption(str(len(trades)) + ' obchodů k dispozici.')
     show_year = int(pills('Rok', [str(year) for year in years], key='show_year'))
     this_config = match_config[show_year]
@@ -41,12 +40,13 @@ def page():
     show_strategy = match_config[show_year]['strategy']
     st.caption(f'Strategie pro rok {show_year}: {show_strategy} | {"roční" if this_config["yearly_rates"] else "denní"} kurzy')
     
-    # Needs recompute only if strategy changed
-    need_recompute = False
+    # Needs recompute only if strategy changed. Empty strategy means this page was opened for the first time
+    need_recompute = False 
     for year in years:
-        if match_config[year]['strategy'] != previous_config[year]['strategy']:
+        if len(previous_config) == 0 or match_config[year]['strategy'] != previous_config[year]['strategy']:
             need_recompute = True
             break
+        
     if need_recompute:
         buys, sells, paired_trades = pair_buy_sell(trades, paired_trades, show_strategy, show_year)
         st.session_state.update(buys=buys)
@@ -97,7 +97,7 @@ def page():
         footer += f' | Osvobozený výdělek v CZK: :green[{untaxed_revenue:.2f}] CZK'
     
     if not unpaired_sells.empty:
-        footer += f' | Pozor, :red[{len(unpaired_sells)}] nenapárovaných prodejů!'
+        footer += f' | Pozor, jsou zde nenapárované prodeje: :red[{len(unpaired_sells)}]'
     st.caption(footer)
     if not unpaired_sells.empty:
         st.subheader('Nenapárované obchody')
