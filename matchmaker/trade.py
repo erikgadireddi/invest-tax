@@ -3,6 +3,7 @@ import pandas as pd
 import streamlit as st
 import matchmaker.data as data
 
+# Ensure all columns are in non-string format
 def convert_trade_columns(df):
     df['Date/Time'] = pd.to_datetime(df['Date/Time'])
     df['Quantity'] = pd.to_numeric(df['Quantity'], errors='coerce')
@@ -29,6 +30,12 @@ def normalize_trades(df):
     # st.write('Imported', len(df), 'rows')
     return df
 
+# Add newly created trades to existing trades, making necessary recomputations
+def add_new_trades(new_trades, trades):
+    trades = pd.concat([trades, normalize_trades(new_trades)])
+    return process_after_import(trades)
+
+# Merge two sets of processed trades together
 @st.cache_data()
 def merge_trades(existing, new):
     if existing is None:
@@ -36,7 +43,15 @@ def merge_trades(existing, new):
     merged = pd.concat([existing, new])
     return merged[~merged.index.duplicated(keep='first')]
 
-def add_split_data(trades, split_actions):
+# Recompute dependent columns after importing new trades
+@st.cache_data()
+def process_after_import(trades, actions=None):
+    trades = _adjust_for_splits(trades, actions)
+    trades = _populate_extra_trade_columns(trades)
+    return trades
+
+# Add split data column to trades by consulting split actions
+def _add_split_data(trades, split_actions):
     split_actions = split_actions[split_actions['Action'] == 'Split']
     if 'Split Ratio' not in trades.columns:
         trades['Split Ratio'] = np.nan
@@ -49,26 +64,22 @@ def add_split_data(trades, split_actions):
         split_actions.drop(columns=['Cumulative Ratio'], inplace=True)
     trades.fillna({'Split Ratio': 1}, inplace=True)
 
+# Add or refresh dynamically computed columns
 @st.cache_data()
-def add_accumulated_positions(trades):
+def _populate_extra_trade_columns(trades):
+    trades = _add_accumulated_positions(trades)
+    return trades
+
+# Compute accumulated positions for each symbol by simulating all trades
+@st.cache_data()
+def _add_accumulated_positions(trades):
     trades = trades.sort_values(by=['Date/Time'])
     trades['Accumulated Quantity'] = trades.groupby('Symbol')['Quantity'].cumsum()
     return trades
 
+# Adjust quantities and trade prices for splits
 @st.cache_data()
-def process_after_import(trades, actions=None):
-    trades = adjust_for_splits(trades, actions)
-    trades = populate_extra_trade_columns(trades)
-    return trades
-
-@st.cache_data()
-def populate_extra_trade_columns(trades):
-    trades = add_accumulated_positions(trades)
-    trades = trades.sort_values(by=['Date/Time'])
-    return trades
-
-@st.cache_data()
-def adjust_for_splits(trades, split_actions):
+def _adjust_for_splits(trades, split_actions):
     if split_actions is not None and not split_actions.empty:
         add_split_data(trades, split_actions)
         trades['Quantity'] = trades['Orig. Quantity'] * trades['Split Ratio']

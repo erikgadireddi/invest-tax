@@ -44,3 +44,4 @@ if trades is not None and not trades.empty:
         st.caption('Historie obsahuje long transakce vedoucí k negativním pozicím. Je možné, že nebyly nahrány všechny obchody či korporátní akce. Zkontrolujte, prosím, zdrojová data a případně doplňte chybějící transakce.')
         table_descriptor = ux.transaction_table_descriptor()
         st.dataframe(suspicious_positions, hide_index=True, column_config=table_descriptor['column_config'], column_order=table_descriptor['column_order'])
+        ux.add_trades_editor(trades, suspicious_positions.iloc[0])

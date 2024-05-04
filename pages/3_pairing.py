@@ -5,8 +5,8 @@ from matchmaker.pairing import pair_buy_sell, strategies
 import matchmaker.currency as currency
 import matchmaker.data as data 
 import matchmaker.ux as ux
+import matchmaker.trade as trade
 from menu import menu
-from matchmaker.trade import normalize_trades, process_after_import
 import copy
 
 def page():
@@ -112,11 +112,6 @@ def page():
         st.subheader('Nenapárované obchody')
         table_descriptor = ux.transaction_table_descriptor()
         st.dataframe(unpaired_sells, hide_index=True, column_config=table_descriptor['column_config'], column_order=table_descriptor['column_order'])
-        def add_buy_callback(df, trades):
-            df = normalize_trades(df)
-            trades = pd.concat([trades, df])
-            trades = process_after_import(trades)
-            st.session_state.update(trades=trades)
-        ux.add_trades_editor(trades, unpaired_sells.iloc[0], lambda df: add_buy_callback(df, trades))
+        ux.add_trades_editor(trades, unpaired_sells.iloc[0])
 
 page()
