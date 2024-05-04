@@ -1,7 +1,7 @@
-import os
 import numpy as np
 import pandas as pd
 import streamlit as st
+import matchmaker.data as data
 
 def convert_trade_columns(df):
     df['Date/Time'] = pd.to_datetime(df['Date/Time'])
@@ -12,8 +12,21 @@ def convert_trade_columns(df):
     df['Realized P/L'] = pd.to_numeric(df['Realized P/L'], errors='coerce')
     df['MTM P/L'] = pd.to_numeric(df['MTM P/L'], errors='coerce')
     df['T. Price'] = pd.to_numeric(df['T. Price'], errors='coerce')
-    df['Action'] = df['Code'].apply(lambda x: 'Open' if 'O' in x else 'Close' if 'C' in x else 'Unknown')
+    if 'Code' in df.columns:
+       df['Action'] = df['Code'].apply(lambda x: 'Open' if 'O' in x else 'Close' if 'C' in x else 'Unknown')
     df['Type'] = df.apply(lambda row: 'Long' if (row['Action'] == 'Open' and row['Quantity'] > 0) or (row['Action'] == 'Close' and row['Quantity'] < 0) else 'Short', axis=1)
+    return df
+
+# Process trades from raw DataFrame
+def normalize_trades(df):
+    df['Year'] = df['Date/Time'].dt.year
+    df = convert_trade_columns(df)
+    df['Orig. Quantity'] = df['Quantity']
+    df['Orig. T. Price'] = df['T. Price']
+    # Set up the hash column as index
+    df['Hash'] = df.apply(data.hash_row, axis=1)
+    df.set_index('Hash', inplace=True)
+    # st.write('Imported', len(df), 'rows')
     return df
 
 @st.cache_data()
@@ -40,6 +53,12 @@ def add_split_data(trades, split_actions):
 def add_accumulated_positions(trades):
     trades = trades.sort_values(by=['Date/Time'])
     trades['Accumulated Quantity'] = trades.groupby('Symbol')['Quantity'].cumsum()
+    return trades
+
+@st.cache_data()
+def process_after_import(trades, actions=None):
+    trades = adjust_for_splits(trades, actions)
+    trades = populate_extra_trade_columns(trades)
     return trades
 
 @st.cache_data()

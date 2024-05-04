@@ -2,12 +2,13 @@ import pandas as pd
 import numpy as np
 import argparse
 import streamlit as st
-from matchmaker.trades import *
+from matchmaker.trade import *
 from matchmaker.ibkr import *
 from matchmaker.pairing import *
 from matchmaker.currency import *
 from menu import menu
 import matchmaker.data as data
+import matchmaker.snapshot as snapshot
 
 streamlit = True
 
@@ -21,8 +22,8 @@ def import_trades(directory, tickers_dir=None):
 
 def import_trade_file(file):
     try:
-        if data.is_snapshot(file):
-            return data.load_snapshot(file)
+        if snapshot.is_snapshot(file):
+            return snapshot.load_snapshot(file)
         else:
             return import_activity_statement(file)
     except Exception as e:
@@ -96,9 +97,7 @@ def main():
         actions.drop_duplicates(inplace=True)
 
         if len(trades) > 0:
-            trades = adjust_for_splits(trades, actions)
-            trades = populate_extra_trade_columns(trades)
-            trades.sort_values(by=['Symbol', 'Date/Time'], inplace=True)
+            trades = process_after_import(trades, actions)
         st.session_state.trades = trades
     
     # Deduplicate actions that contain the exact same data, ignoring index
@@ -106,6 +105,8 @@ def main():
 
     # Show imported trades
     st.caption(f':blue[{len(trades)}] nalezených obchodů.')
+    if (len(trades) > 0):
+        trades.sort_values(by=['Symbol', 'Date/Time'], inplace=True)
     st.dataframe(data=trades, hide_index=True, width=1100, height=500, column_order=('Symbol', 'Date/Time', 'Quantity', 'Currency', 'T. Price', 'Proceeds', 'Comm/Fee', 'Realized P/L', 'Accumulated Quantity', 'Split Ratio'),
                     column_config={
                         'Realized P/L': st.column_config.NumberColumn("Profit", format="%.1f"), 
@@ -140,7 +141,7 @@ def main():
     # Serve merged trades as CSV    
     with col1:
         if (len(trades) > 0):
-            trades_csv = data.save_snapshot(trades, actions).encode('utf-8')
+            trades_csv = snapshot.save_snapshot(trades, actions).encode('utf-8')
             st.download_button('📩 Stáhnout vše v CSV', trades_csv, 'merged_trades.csv', 'text/csv', use_container_width=True, help='Stažením dostanete celý stav výpočtu pro další použití. Stačí příště přetáhnout do importu pro pokračování.')
     # Clear uploaded files
     with col2:

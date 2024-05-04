@@ -3,8 +3,7 @@ import re
 import pandas as pd
 import streamlit as st
 import numpy as np
-from .data import hash_row
-from .trades import convert_trade_columns
+from .trade import normalize_trades
 import matchmaker.actions as actions
 from io import StringIO
 
@@ -18,43 +17,32 @@ def dataframe_from_lines_with_prefix(file, prefix):
     file_data = StringIO('\n'.join(file_lines))
     return pd.read_csv(file_data)
 
+
+# Import trades from IBKR format
+# First line is the headers: Trades,Header,DataDiscriminator,Asset Category,Currency,Symbol,Date/Time,Quantity,T. Price,C. Price,Proceeds,Comm/Fee,Basis,Realized P/L,MTM P/L,Code
+# Column	Descriptions
+# Trades	The trade number.
+# Header	Header record contains the report title and the date and time of the report.
+# Asset Category	The asset category of the instrument. Possibl   e values are: "Stocks", "Options", "Futures", "FuturesOptions
+# Symbol	    The symbol of the instrument you traded.
+# Date/Time	The date and the time of the execution.
+# Quantity	The number of units for the transaction.
+# T. Price	The transaction price.
+# C. Price	The closing price of the instrument.
+# Proceeds	Calculated by mulitplying the quantity and the transaction price. The proceeds figure will be negative for buys and positive for sales.
+# Comm/Fee	The total amount of commission and fees for the transaction.
+# Basis	    The basis of an opening trade is the inverse of proceeds plus commission and tax amount. For closing trades, the basis is the basis of the opening trade.
+
+# Data begins on the second line
+# Example line: Trades,Data,Order,Stocks,CZK,CEZ,"2023-08-03, 08:44:03",250,954,960,-238500,-763.2,239263.2,0,1500,O
 def import_trades(file):
     df = dataframe_from_lines_with_prefix(file, 'Trades')
     df = df[(df['Trades'] == 'Trades') & (df['Header'] == 'Data') & (df['DataDiscriminator'] == 'Order') & (df['Asset Category'] == 'Stocks')]
-    # First line is the headers: Trades,Header,DataDiscriminator,Asset Category,Currency,Symbol,Date/Time,Quantity,T. Price,C. Price,Proceeds,Comm/Fee,Basis,Realized P/L,MTM P/L,Code
-    # Column	Descriptions
-    # Trades	The trade number.
-    # Header	Header record contains the report title and the date and time of the report.
-    # Asset Category	The asset category of the instrument. Possibl   e values are: "Stocks", "Options", "Futures", "FuturesOptions
-    # Symbol	    The symbol of the instrument you traded.
-    # Date/Time	The date and the time of the execution.
-    # Quantity	The number of units for the transaction.
-    # T. Price	The transaction price.
-    # C. Price	The closing price of the instrument.
-    # Proceeds	Calculated by mulitplying the quantity and the transaction price. The proceeds figure will be negative for buys and positive for sales.
-    # Comm/Fee	The total amount of commission and fees for the transaction.
-    # Basis	    The basis of an opening trade is the inverse of proceeds plus commission and tax amount. For closing trades, the basis is the basis of the opening trade.
-
-    # Data begins on the second line
-    # Example line: Trades,Data,Order,Stocks,CZK,CEZ,"2023-08-03, 08:44:03",250,954,960,-238500,-763.2,239263.2,0,1500,O
-
     # Filter DataFrame by Asset Category == 'Stocks' and DataDiscriminator == 'Data' (rest is partial sums and totals)
     df = df[(df['Asset Category'] == 'Stocks') & (df['DataDiscriminator'] == 'Order')]
-
-    # Convert columns to correct types
     df['Date/Time'] = pd.to_datetime(df['Date/Time'], format='%Y-%m-%d, %H:%M:%S')
-    df['Year'] = df['Date/Time'].dt.year
     df['Quantity'] = pd.to_numeric(df['Quantity'].astype(str).str.replace(',', ''), errors='coerce')
-
-    # Convert the rest
-    df = convert_trade_columns(df)
-    df['Orig. Quantity'] = df['Quantity']
-    df['Orig. T. Price'] = df['T. Price']
-    # Set up the hash column as index
-    df['Hash'] = df.apply(hash_row, axis=1)
-    df.set_index('Hash', inplace=True)
-    # st.write('Imported', len(df), 'rows')
-    return df
+    return normalize_trades(df)
 
 def import_corporate_actions(file):
     df = dataframe_from_lines_with_prefix(file, 'Corporate Actions,')
