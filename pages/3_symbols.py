@@ -22,18 +22,25 @@ else:
 
 yearly_rates = currency.load_yearly_rates(st.session_state['settings']['currency_rates_dir'])
 
-if trades is not None and not trades.empty:    
-    symbols = sorted(trades['Symbol'].unique())
-    symbol = pills('Vyberte symbol pro inspekci', options=symbols, key='symbol')
+if trades is not None and not trades.empty:
+    year = st.selectbox('Zobrazuji symboly', [0] + sorted(trades['Year'].unique()), index=0, key='year', format_func=lambda x: 'Všechny' if x == 0 else f's transakcemi od roku {x}')
+    if year == 0:
+        symbols = sorted(trades['Symbol'].unique())
+    else:
+        symbols = sorted(trades[trades['Year'] >= year]['Symbol'].unique())
+    symbol = pills('Vyberte symbol pro inspekci', options=symbols)
     st.caption(f'Vysvětlivky k jednotlivým sloupcům jsou k dispozici na najetí myší.')
-    shown_trades = trades[trades['Symbol'] == symbol]
+    shown_trades = trades[trades['Symbol'] == symbol].sort_values(by='Date/Time')
     if shown_trades.empty:
         st.caption(f'Pro symbol {symbol} nebyly nalezeny žádné obchody.')
     else:
         table_descriptor = ux.transaction_table_descriptor_native()
         trades_display = st.dataframe(shown_trades, hide_index=True, column_order=table_descriptor['column_order'], column_config=table_descriptor['column_config'])
         profit = shown_trades['Realized P/L'].sum()
-        st.caption(f'Profit dle brokera: :green[{profit:.0f}] {shown_trades["Currency"].iloc[0]}')
+        held_position = shown_trades['Accumulated Quantity'].iloc[-1]
+        if held_position != 0:
+            st.markdown(f'**Držené pozice: :blue[{held_position:.0f}]**')
+        st.caption(f'Realizovaný profit dle brokera: :green[{profit:.0f}] {shown_trades["Currency"].iloc[0]}')
             
         suspicious_positions = shown_trades[((shown_trades['Accumulated Quantity'] < 0) & (shown_trades['Type'] == 'Long') & (shown_trades['Action'] == 'Close') | 
                                             (shown_trades['Accumulated Quantity'] > 0) & (shown_trades['Type'] == 'Short') & (shown_trades['Action'] == 'Close'))]
