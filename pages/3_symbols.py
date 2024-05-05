@@ -17,17 +17,19 @@ symbol = st.session_state.symbol if 'symbol' in st.session_state else None
 if trades.empty:
     st.caption('Nebyly importovány žádné obchody.')
     st.page_link("pages/1_import_trades.py", label="📥 Přejít na import obchodů")
-else:
-    st.caption(str(len(trades)) + ' trades available.')
 
 yearly_rates = currency.load_yearly_rates(st.session_state['settings']['currency_rates_dir'])
 
 if trades is not None and not trades.empty:
     year = st.selectbox('Zobrazuji symboly', [0] + sorted(trades['Year'].unique()), index=0, key='year', format_func=lambda x: 'Všechny' if x == 0 else f's transakcemi od roku {x}')
-    if year == 0:
+    if year is None or year == 0:
         symbols = sorted(trades['Symbol'].unique())
     else:
         symbols = sorted(trades[trades['Year'] >= year]['Symbol'].unique())
+    if len(symbols) == 0:
+        st.caption('Pro zvolené období nebyly nalezeny žádné transakce.')
+        st.stop()
+        
     symbol = pills('Vyberte symbol pro inspekci', options=symbols)
     st.caption(f'Vysvětlivky k jednotlivým sloupcům jsou k dispozici na najetí myší.')
     shown_trades = trades[trades['Symbol'] == symbol].sort_values(by='Date/Time')

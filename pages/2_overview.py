@@ -18,7 +18,7 @@ if trades.empty:
     st.caption('Nebyly importovány žádné obchody.')
     st.page_link("pages/1_import_trades.py", label="📥 Přejít na import obchodů")
 else:
-    st.caption(str(len(trades)) + ' trades available.')
+    st.caption(str(len(trades)) + ' transakcí k dispozici.')
 
 daily_rates = currency.load_daily_rates(st.session_state['settings']['currency_rates_dir'])
 yearly_rates = currency.load_yearly_rates(st.session_state['settings']['currency_rates_dir'])
@@ -26,7 +26,7 @@ yearly_rates = currency.load_yearly_rates(st.session_state['settings']['currency
 if trades is not None and not trades.empty:    
     trades = currency.add_czk_conversion_to_trades(trades, daily_rates, use_yearly_rates=False)
     years = sorted(trades['Year'].unique())
-    year_str = pills('Select year to view', ['All'] + [str(year) for year in years])
+    year_str = pills('Vyberte si rok', ['All'] + [str(year) for year in years])
     year = int(year_str) if year_str != 'All' else None
     st.session_state.update(year=year)
     st.caption(f'Vysvětlivky k jednotlivým sloupcům jsou k dispozici na najetí myší.')
