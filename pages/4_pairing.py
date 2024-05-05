@@ -89,7 +89,7 @@ def page():
                                     'Sell Proceeds': st.column_config.NumberColumn("Prodej (čistý)", help="Cena prodeje 1 kusu včetně poplatků", format="%.2f"), 
                                     'Revenue': st.column_config.NumberColumn("Výdělek (čistý)", help="Zisk z prodeje mínus cena nákupu včetně poplatků", format="%.1f"), 
                                     'Currency': st.column_config.TextColumn("Měna", help="Měna v které bylo obchodováno"), 
-                                    'Percent Return': st.column_config.NumberColumn("Návratnost", help="Návratnost obchodu po odečtení všech nákladů včetně poplatků", format="%.2f%%"), 
+                                    'Percent Return': st.column_config.NumberColumn("Návratnost", help="Návratnost obchodu po odečtení všech nákladů včetně poplatků", format="%.0f%%"), 
                                     'Taxable': st.column_config.CheckboxColumn("Daní se", help="Prodej se daní, pokud nebyl spárován s nákupem starším 3 let (časový test)"),
                                     'Type': st.column_config.TextColumn("Typ", help="Long nebo short pozice. Long pozice je standardní nákup instrumentu pro pozdější prodej s očekáváním zvýšení ceny. Short pozice je prodej instrumentu, který ještě nevlastníte, s očekáváním poklesu ceny a následného nákupu."),
                                     'Buy CZK Rate': st.column_config.NumberColumn("Nákupní kurz", help="Kurz měny v době nákupu", format="%.2f"),

@@ -72,31 +72,30 @@ def main():
                     \nJelikož nejdelší období, které můžete zvolit, je rok, může být nutné udělat postupně několik exportů. Všechny najednou je pak můžete myší přetáhnout sem. Nevadí, pokud se budou překrývat. Můžete také kdykoliv
                     přidat další exporty či kombinovat z exporty z Taxlite.''')
 
-    with st.expander(f'Jak nepřijít o stav výpočtů z :green[Taxlite]'):
-        st.markdown('''Pro Vaše bezpečí Taxlite neukládá žádné informace o Vašich obchodech na server, vše je ukládáno pouze do Vašeho prohlížeče. Vývojáři ani nikdo jiný je neuvidí. 
+    with st.expander(f'Bezpečnost a jak nepřijít o stav výpočtů z :green[Taxlite]'):
+        st.markdown('''Pro Vaše soukromí Taxlite neukládá žádné informace o Vašich obchodech na server, vše je ukládáno pouze do Vašeho prohlížeče. Vývojáři ani nikdo jiný je neuvidí. 
                     Toto zároveň znamená, že pokud zavřete stránku nebo smažete session, všechny obchody budou zahozeny. Je proto důležité se stav výpočtů pravidelně ukládat stažením do CSV souboru, 
                     který si můžete kdykoliv zase nahrát a pokračovat v práci.
                     \nCelý interní stav aplikace si můžete kdykoliv stáhnout tlačítkem :red[Stáhnout vše v CSV] a uchovat na svém počítači, jelikož po zavření stránky nebo smazání session bude interní stav ztracen.
                     Následně ho můžete importovat stejným způsobem, jakým importujete exporty z Interactive Brokers. V případě poptávky mohu dodělat i ukládání stavu na server.
                     ''')
-        st.caption('Kód aplikace je open-source a můžete si tato tvrzení kdykoliv ověřit kliknutím na odkaz na GitHub v záhlaví aplikace. Také si můžete stáhnout celý kód a spustit si Taxlite na svém počítači.\n')
+        st.caption('Kód aplikace je open-source a můžete si tato tvrzení kdykoliv ověřit kliknutím na odkaz na GitHub v záhlaví aplikace. Kdykoliv si také můžete stáhnout celý kód a spustit si Taxlite na svém počítači.\n')
     import_state = st.caption('')
     trades_count = len(trades)
     loaded_count = 0
     # On upload, run import trades
     if uploaded_files:
         for uploaded_file in uploaded_files:
-            import_state.write('Importing trades...')
+            import_state.write('Importuji transakce...')
             imported_trades, imported_actions = import_trade_file(uploaded_file)
             actions = pd.concat([imported_actions, actions])
             loaded_count += len(imported_trades)
-            import_state.write(f'Merging :blue[{len(imported_trades)}] trades...')
+            import_state.write(f'Slučuji :blue[{len(imported_trades)}] obchodů...')
             trades = merge_trades(trades, imported_trades)
-            import_message = f'Imported :green[{len(trades) - trades_count}] trades.'
-            st.session_state.trades = trades
+            import_message = f'Importováno :green[{len(trades) - trades_count}] obchodů.'
             import_state.write(import_message)
 
-        import_state.write(f'Total trades loaded: :blue[{loaded_count}] of which :green[{len(trades) - trades_count}] were new.')
+        import_state.write(f'Nalezeno :blue[{loaded_count}] obchodů, z nichž :green[{len(trades) - trades_count}] je nových.')
         actions.drop_duplicates(inplace=True)
 
         if len(trades) > 0:
@@ -107,9 +106,12 @@ def main():
     st.session_state.actions = actions
 
     # Show imported trades
+    
+    if (len(trades) == 0):
+        return
+    
+    trades.sort_values(by=['Symbol', 'Date/Time'], inplace=True)
     st.caption(f':blue[{len(trades)}] nalezených obchodů.')
-    if (len(trades) > 0):
-        trades.sort_values(by=['Symbol', 'Date/Time'], inplace=True)
     st.dataframe(data=trades, hide_index=True, width=1100, height=500, column_order=('Symbol', 'Date/Time', 'Quantity', 'Currency', 'T. Price', 'Proceeds', 'Comm/Fee', 'Realized P/L', 'Accumulated Quantity', 'Split Ratio'),
                     column_config={
                         'Realized P/L': st.column_config.NumberColumn("Profit", format="%.1f"), 

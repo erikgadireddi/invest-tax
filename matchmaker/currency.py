@@ -49,6 +49,7 @@ def add_czk_conversion_to_trades(trades, rates, use_yearly_rates=True):
     trades['CZK Proceeds'] = trades['Proceeds'] *  trades['CZK Rate']
     trades['CZK Commission'] = trades['Comm/Fee'] * trades['CZK Rate']
     trades['CZK Profit'] = trades['Realized P/L'] * trades['CZK Rate']
+    return trades
 
 def add_czk_conversion_to_pairs(trade_pairs, rates, use_yearly_rates=True):
     annotated_pairs = trade_pairs.copy()
