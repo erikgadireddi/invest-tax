@@ -6,7 +6,7 @@ import matchmaker.data as data
 import matchmaker.ux as ux
 from menu import menu
 
-st.set_page_config(page_title='Prehled', layout='wide')
+st.set_page_config(page_title='Doplnění obchodů', layout='wide')
 menu()
 
 data.load_settings()
@@ -15,7 +15,8 @@ trades = st.session_state.trades if 'trades' in st.session_state else pd.DataFra
 year = st.session_state.year if 'year' in st.session_state else None
 
 if trades.empty:
-    st.write('No trades loaded. Import some first.')
+    st.caption('Nebyly importovány žádné obchody.')
+    st.page_link("pages/1_import_trades.py", label="📥 Přejít na import obchodů")
 else:
     st.caption(str(len(trades)) + ' trades available.')
 

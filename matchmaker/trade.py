@@ -81,7 +81,7 @@ def _add_accumulated_positions(trades):
 @st.cache_data()
 def _adjust_for_splits(trades, split_actions):
     if split_actions is not None and not split_actions.empty:
-        add_split_data(trades, split_actions)
+        _add_split_data(trades, split_actions)
         trades['Quantity'] = trades['Orig. Quantity'] * trades['Split Ratio']
         trades['T. Price'] = trades['Orig. T. Price'] / trades['Split Ratio']
     return trades

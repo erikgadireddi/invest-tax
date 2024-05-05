@@ -10,16 +10,6 @@ from menu import menu
 import matchmaker.data as data
 import matchmaker.snapshot as snapshot
 
-streamlit = True
-
-# Load Trades CSV as DataFrame
-def import_trades(directory, tickers_dir=None):
-    merged = None
-    for trades in import_all_statements(directory, tickers_dir):
-        merged = merge_trades(merged, trades)
-    merged = populate_extra_trade_columns(merged, tickers_dir)
-    return merged    
-
 def import_trade_file(file):
     try:
         if snapshot.is_snapshot(file):
@@ -36,7 +26,7 @@ def main():
     menu()
     data.load_settings()
     # st.header('Taxonomy Matchmaker')
-    st.subheader('Import Trades From IBKR Activity Statements')
+    st.subheader('Import transkací z Interactive Brokers')
     
     # Process command-line arguments
     parser = argparse.ArgumentParser(description='Process command-line arguments')
@@ -68,15 +58,28 @@ def main():
             trades.drop(trades.index, inplace=True)
         
     # Show file upload widget
-    uploaded_files = st.file_uploader("Choose a file", accept_multiple_files=True, type=['csv'], 
+    uploaded_files = st.file_uploader("Přetáhněte libovolné množství exportů (IBKR i Taxlite)", accept_multiple_files=True, type=['csv'], 
                                       on_change=lambda: change_uploaded_files(trades, uploaded_files), key='file_uploader', help='Upload IBKR Activity Statements or CSV files with trades.')
     # Save newly uploaded files to session
     # Load list of filenames from session state
     st.session_state.uploaded_files = [f.name for f in uploaded_files]
 
-    st.caption('To start, drop your IBKR Activity Statements here. You can export them using Statements->Activity on IBKR web. '
-               'It allows a maximum of 365 days at a time, so you may need several exports. They can overlap and will be merged correctly.\n'
-               'Once imported, you can download the merged trades as a single CSV file for future imports. Nothing is stored on the server.')
+    st.markdown('Po vyexportování historie všech obchodů je stačí zde všechny přetáhnout a aplikace je zpracuje. Také můžete přetáhnout export stavu Taxlite, pokud jste si jej stáhli.',
+                unsafe_allow_html=True)
+    with st.expander(f'Jak získat exporty z :blue[Interactive Brokers]'):
+        st.markdown('''Aplikace nyní podporuje pouze importy z :blue[Interactive Brokers].
+                    Nejjednodušší cesta k exportu je skrz web IB kliknout v horním menu na Statements, vybrat Activity Statements, následně zvolit Yearly (roční), formát CSV a postupně vyexportovat všechny roky, kdy jste obchodovali.
+                    \nJelikož nejdelší období, které můžete zvolit, je rok, může být nutné udělat postupně několik exportů. Všechny najednou je pak můžete myší přetáhnout sem. Nevadí, pokud se budou překrývat. Můžete také kdykoliv
+                    přidat další exporty či kombinovat z exporty z Taxlite.''')
+
+    with st.expander(f'Jak nepřijít o stav výpočtů z :green[Taxlite]'):
+        st.markdown('''Pro Vaše bezpečí Taxlite neukládá žádné informace o Vašich obchodech na server, vše je ukládáno pouze do Vašeho prohlížeče. Vývojáři ani nikdo jiný je neuvidí. 
+                    Toto zároveň znamená, že pokud zavřete stránku nebo smažete session, všechny obchody budou zahozeny. Je proto důležité se stav výpočtů pravidelně ukládat stažením do CSV souboru, 
+                    který si můžete kdykoliv zase nahrát a pokračovat v práci.
+                    \nCelý interní stav aplikace si můžete kdykoliv stáhnout tlačítkem :red[Stáhnout vše v CSV] a uchovat na svém počítači, jelikož po zavření stránky nebo smazání session bude interní stav ztracen.
+                    Následně ho můžete importovat stejným způsobem, jakým importujete exporty z Interactive Brokers. V případě poptávky mohu dodělat i ukládání stavu na server.
+                    ''')
+        st.caption('Kód aplikace je open-source a můžete si tato tvrzení kdykoliv ověřit kliknutím na odkaz na GitHub v záhlaví aplikace. Také si můžete stáhnout celý kód a spustit si Taxlite na svém počítači.\n')
     import_state = st.caption('')
     trades_count = len(trades)
     loaded_count = 0

@@ -3,6 +3,7 @@ import streamlit as st
 
 def unauthenticated_menu():
     # Show a navigation menu for unauthenticated users
+    st.sidebar.page_link("app.py", label="Popis")
     st.sidebar.page_link("pages/1_import_trades.py", label="Import obchodů")
     st.sidebar.page_link("pages/2_overview.py", label="Korekce / doplnění obchodů")
     st.sidebar.page_link("pages/3_pairing.py", label="Daňový přehled")

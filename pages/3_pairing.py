@@ -10,7 +10,7 @@ from menu import menu
 import copy
 
 def page():
-    st.set_page_config(page_title='Párování obchodů', layout='wide')
+    st.set_page_config(page_title='Daňový přehled', layout='wide')
     menu()
     data.load_settings()
 
@@ -25,7 +25,8 @@ def page():
     sells = st.session_state.sells if 'sells' in st.session_state else pd.DataFrame()
     previous_config = copy.deepcopy(match_config)
     if trades.empty:
-        st.write('No trades loaded. Import some first.')
+        st.caption('Nebyly importovány žádné obchody.')
+        st.page_link("pages/1_import_trades.py", label="📥 Přejít na import obchodů")
         return
         
     # Matching configuration is a dictionary[year] of:
