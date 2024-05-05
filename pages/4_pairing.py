@@ -111,7 +111,7 @@ def page():
     st.caption(footer)
     if not unpaired_sells.empty:
         st.subheader('Nenapárované obchody')
-        table_descriptor = ux.transaction_table_descriptor()
+        table_descriptor = ux.transaction_table_descriptor_czk()
         st.dataframe(unpaired_sells, hide_index=True, column_config=table_descriptor['column_config'], column_order=table_descriptor['column_order'])
         ux.add_trades_editor(trades, unpaired_sells.iloc[0])
 

@@ -2,7 +2,7 @@ import pandas as pd
 import streamlit as st
 import matchmaker.trade as trade
 
-def transaction_table_descriptor():
+def transaction_table_descriptor_czk():
    return {
        'column_order' : ('Symbol', 'Date/Time', 'Quantity', 'Currency', 'T. Price', 'Comm/Fee', 'CZK Proceeds', 'CZK Fee', 'CZK Profit', 'Accumulated Quantity', 'Action', 'Type'),
        'column_config' : {
@@ -21,6 +21,24 @@ def transaction_table_descriptor():
                         'Type': st.column_config.TextColumn("Typ", help="Long nebo short pozice. Long pozice je standardní nákup instrumentu pro pozdější prodej s očekáváním zvýšení ceny. Short pozice je prodej instrumentu, který ještě nevlastníte, s očekáváním poklesu ceny a následného nákupu.")
                         }
        }
+   
+def transaction_table_descriptor_native():
+   return {
+       'column_order' : ('Symbol', 'Date/Time', 'Quantity', 'Currency', 'T. Price', 'Comm/Fee', 'Realized P/L', 'Accumulated Quantity', 'Action'),
+       'column_config' : {
+                        'Currency': st.column_config.TextColumn("Měna", help="Měna v které bylo obchodováno"), 
+                        'Quantity': st.column_config.NumberColumn("Počet", help="Počet kusů daného instrumentu", format="%f"), 
+                        'Date/Time': st.column_config.DatetimeColumn("Čas transakce", help="Datum a čas transakce"), 
+                        'T. Price': st.column_config.NumberColumn("Cena", help="Cena za 1 kus daného instrumentu", format="%f"), 
+                        'Comm/Fee': st.column_config.NumberColumn("Poplatek",  help="Poplatek brokerovi za celou transakci. Při párování pozic bude rozpočítán.", format="%.1f"), 
+                        'Realized P/L': st.column_config.NumberColumn("Zisk", help="Zisk v původní měně je ve zdrojových datech obvykle počítán FIFO metodou.", format="%.1f"), 
+                        'Accumulated Quantity': st.column_config.NumberColumn("Pozice", help="Otevřené pozice po této transakci. Negativní znamenají shorty. "
+                                                                                "Pokud toto číslo nesedí s realitou, v importovaných transakcích se nenacházejí všechny obchody", format="%f"), 
+                        'Action': st.column_config.TextColumn("Akce", help="Otevření nebo uzavření pozice. Shorty začínají prodejem a končí nákupem."),
+                        'Type': st.column_config.TextColumn("Typ", help="Long nebo short pozice. Long pozice je standardní nákup instrumentu pro pozdější prodej s očekáváním zvýšení ceny. Short pozice je prodej instrumentu, který ještě nevlastníte, s očekáváním poklesu ceny a následného nákupu.")
+                        }
+       }
+
    
 def add_trades_editor(trades, selected_trade=None, callback=None):
     with st.form(key='add_buy_form'):

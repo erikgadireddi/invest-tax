@@ -31,7 +31,7 @@ if trades is not None and not trades.empty:
     st.session_state.update(year=year)
     st.caption(f'Vysvětlivky k jednotlivým sloupcům jsou k dispozici na najetí myší.')
     shown_trades = trades[trades['Year'] == year] if year is not None else trades
-    table_descriptor = ux.transaction_table_descriptor()
+    table_descriptor = ux.transaction_table_descriptor_czk()
     trades_display = st.dataframe(shown_trades, hide_index=True, column_order=table_descriptor['column_order'], column_config=table_descriptor['column_config'])
     profit_czk = trades[trades['Year'] == year]['CZK Profit'].sum() if year is not None else trades['CZK Profit'].sum()
     if year is not None:
@@ -43,6 +43,6 @@ if trades is not None and not trades.empty:
                                          (shown_trades['Accumulated Quantity'] > 0) & (shown_trades['Type'] == 'Short') & (shown_trades['Action'] == 'Close'))]
     if len(suspicious_positions) > 0:
         st.caption('Historie obsahuje long transakce vedoucí k negativním pozicím. Je možné, že nebyly nahrány všechny obchody či korporátní akce. Zkontrolujte, prosím, zdrojová data a případně doplňte chybějící transakce.')
-        table_descriptor = ux.transaction_table_descriptor()
+        table_descriptor = ux.transaction_table_descriptor_czk()
         st.dataframe(suspicious_positions, hide_index=True, column_config=table_descriptor['column_config'], column_order=table_descriptor['column_order'])
         ux.add_trades_editor(trades, suspicious_positions.iloc[0])

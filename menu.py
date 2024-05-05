@@ -6,7 +6,7 @@ def unauthenticated_menu():
     st.sidebar.page_link("app.py", label="Popis")
     st.sidebar.page_link("pages/1_import_trades.py", label="Import obchodů")
     st.sidebar.page_link("pages/2_overview.py", label="Korekce / doplnění obchodů")
-    # st.sidebar.page_link("pages/3_symbols.py", label="Přehled podle symbolů")
+    st.sidebar.page_link("pages/3_symbols.py", label="Přehled podle symbolů")
     st.sidebar.page_link("pages/4_pairing.py", label="Daňový přehled")
 
 def menu():
