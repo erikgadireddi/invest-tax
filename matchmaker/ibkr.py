@@ -3,9 +3,10 @@ import re
 import pandas as pd
 import streamlit as st
 import numpy as np
-from .trade import normalize_trades
-import matchmaker.actions as actions
 from io import StringIO
+from matchmaker.trade import normalize_trades
+import matchmaker.actions as actions
+import matchmaker.position as position
 
 def dataframe_from_lines_with_prefix(file, prefix):
     file.seek(0)
@@ -13,7 +14,7 @@ def dataframe_from_lines_with_prefix(file, prefix):
     # Filter file lines to those beginning with 'Trades'
     file_lines = [line for line in file if line.startswith(prefix)]
     if len(file_lines) == 0:
-        return pd.DataFrame(columns=['Corporate Actions', 'Header', 'Asset Category', 'Date/Time', 'Currency', 'Symbol', 'Quantity', 'Ratio', 'Description', 'Proceeds', 'Value', 'Realized P/L', 'Action', 'Code'])
+        return pd.DataFrame()
     file_data = StringIO('\n'.join(file_lines))
     return pd.read_csv(file_data)
 
@@ -23,7 +24,7 @@ def dataframe_from_lines_with_prefix(file, prefix):
 # Column	Descriptions
 # Trades	The trade number.
 # Header	Header record contains the report title and the date and time of the report.
-# Asset Category	The asset category of the instrument. Possibl   e values are: "Stocks", "Options", "Futures", "FuturesOptions
+# Asset Category	The asset category of the instrument. Possible values are: "Stocks", "Options", "Futures", "FuturesOptions
 # Symbol	    The symbol of the instrument you traded.
 # Date/Time	The date and the time of the execution.
 # Quantity	The number of units for the transaction.
@@ -46,6 +47,8 @@ def import_trades(file):
 
 def import_corporate_actions(file):
     df = dataframe_from_lines_with_prefix(file, 'Corporate Actions,')
+    if df.empty:
+        df = pd.DataFrame(columns=['Corporate Actions', 'Header', 'Asset Category', 'Date/Time', 'Currency', 'Symbol', 'Quantity', 'Ratio', 'Description', 'Proceeds', 'Value', 'Realized P/L', 'Action', 'Code'])
     df = df[df['Asset Category'] == 'Stocks']
     df.drop(columns=['Corporate Actions', 'Header', 'Asset Category'], inplace=True)
     df['Action'] = df['Description'].apply(lambda x: 'Dividend' if 'Dividend' in x else 'Split' if 'Split' in x else 'Unknown')
@@ -77,11 +80,37 @@ def import_corporate_actions(file):
     df = actions.convert_action_columns(df)
     return df
 
+def import_open_positions(file, date_from, date_to):
+    df = dataframe_from_lines_with_prefix(file, 'Mark-to-Market Performance Summary,')
+    if df.empty:
+        # Mark-to-Market Performance Summary,Header,Asset Category,Symbol,Prior Quantity,Current Quantity,Prior Price,
+        # Current Price,Mark-to-Market P/L Position,Mark-to-Market P/L Transaction,Mark-to-Market P/L Commissions,Mark-to-Market P/L Other,Mark-to-Market P/L Total,Code
+        df = pd.DataFrame(columns=['Mark-to-Market Performance Summary', 'Header', 'Asset Category', 'Symbol', 'Prior Quantity', 'Current Quantity', 'Prior Price', 'Current Price',
+                                   'Mark-to-Market P/L Position','Mark-to-Market P/L Transaction','Mark-to-Market P/L Commissions','Mark-to-Market P/L Other','Mark-to-Market P/L Total','Code'])
+    df = df[df['Asset Category'] == 'Stocks']
+    df.drop(columns=['Mark-to-Market Performance Summary', 'Header', 'Asset Category', 'Code'], inplace=True)
+    df['Prior Date'] = date_from
+    df['Current Date'] = date_to
+    return position.convert_position_history_columns(df)
+
 @st.cache_data()
 def import_activity_statement(file):
+    file.seek(0)
+    # 2nd line: Statement,Data,Title,Activity Statement
+    # 3rd line: Statement,Data,Period,"April 13, 2020 - April 12, 2021"
+    while line := file.readline().decode('utf-8'):
+        if line.startswith('Statement,Data,Title,Activity Statement'):
+            break
+    match_period = re.match('Statement,Data,Period,"(.+) - (.+)"', file.readline().decode('utf-8'))
+    if not match_period:
+        raise Exception('No period in IBKR Activity Statement')
+    # Convert to from and to dates
+    from_date = pd.to_datetime(match_period.group(1), format='%B %d, %Y')
+    to_date = pd.to_datetime(match_period.group(2), format='%B %d, %Y')    
     trades = import_trades(file)
     actions = import_corporate_actions(file)
-    return trades, actions
+    open_positions = import_open_positions(file, from_date, to_date)
+    return trades, actions, open_positions
 
 def import_all_statements(directory, tickers_dir=None):
     # Go over all 'Activity' exports that contain all data and extract only the 'Trades' part

@@ -49,6 +49,7 @@ def main():
 
     trades = st.session_state.trades if 'trades' in st.session_state else pd.DataFrame()
     actions = st.session_state.actions if 'actions' in st.session_state else pd.DataFrame()
+    positions = st.session_state.positions if 'positions' in st.session_state else pd.DataFrame()
     sell_buy_pairs = None
     process_years = None
     preserve_years = None
@@ -87,9 +88,10 @@ def main():
     if uploaded_files:
         for uploaded_file in uploaded_files:
             import_state.write('Importuji transakce...')
-            imported_trades, imported_actions = import_trade_file(uploaded_file)
+            imported_trades, imported_actions, imported_positions = import_trade_file(uploaded_file)
             if len(imported_actions) > 0:
                 actions = pd.concat([imported_actions, actions])
+            positions = pd.concat([imported_positions, positions])
             loaded_count += len(imported_trades)
             import_state.write(f'Slučuji :blue[{len(imported_trades)}] obchodů...')
             trades = merge_trades(trades, imported_trades)
@@ -102,12 +104,9 @@ def main():
         if len(trades) > 0:
             trades = process_after_import(trades, actions)
         st.session_state.trades = trades
-    
-    # Deduplicate actions that contain the exact same data, ignoring index
-    st.session_state.actions = actions
+        st.session_state.actions = actions
+        st.session_state.positions = positions
 
-    # Show imported trades
-    
     if (len(trades) == 0):
         return
     
@@ -147,7 +146,7 @@ def main():
     # Serve merged trades as CSV    
     with col1:
         if (len(trades) > 0):
-            trades_csv = snapshot.save_snapshot(trades, actions).encode('utf-8')
+            trades_csv = snapshot.save_snapshot(trades, actions, positions).encode('utf-8')
             st.download_button('📩 Stáhnout vše v CSV', trades_csv, 'merged_trades.csv', 'text/csv', use_container_width=True, help='Stažením dostanete celý stav výpočtu pro další použití. Stačí příště přetáhnout do importu pro pokračování.')
     # Clear uploaded files
     with col2:
