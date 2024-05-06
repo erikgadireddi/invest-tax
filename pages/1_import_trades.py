@@ -88,7 +88,8 @@ def main():
         for uploaded_file in uploaded_files:
             import_state.write('Importuji transakce...')
             imported_trades, imported_actions = import_trade_file(uploaded_file)
-            actions = pd.concat([imported_actions, actions])
+            if len(imported_actions) > 0:
+                actions = pd.concat([imported_actions, actions])
             loaded_count += len(imported_trades)
             import_state.write(f'Slučuji :blue[{len(imported_trades)}] obchodů...')
             trades = merge_trades(trades, imported_trades)
@@ -124,7 +125,7 @@ def main():
 
     # Show imported splits
     if len(actions) > 0:
-        splits = actions[actions['Action'] == 'Split']
+        splits = actions[actions['Action'] == 'Split'].copy()
         splits['Reverse Ratio'] = 1 / splits['Ratio']
         if len(splits) > 0:
             with st.expander(f'Splity, kterým rozumíme (:blue[{len(splits)}])'):

@@ -72,6 +72,8 @@ def import_corporate_actions(file):
     df['Date/Time'] = pd.to_datetime(df['Date/Time'], format='%Y-%m-%d, %H:%M:%S')
     df['Symbol'] = df['Description'].apply(lambda x: parse_action_symbol(x))    
     df['Ratio'] = df[df['Action'] == 'Split']['Description'].apply(lambda x: get_split_ratio(x))
+    df['Ratio'] = pd.to_numeric(df['Ratio'].fillna(0.0))
+    df.drop(columns=['Code'], inplace=True)
     df = actions.convert_action_columns(df)
     return df
 
