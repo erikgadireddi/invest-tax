@@ -35,7 +35,7 @@ if trades is not None and not trades.empty:
         selected_year = shown_trades['Date/Time'].dt.year.max()
 
     open_positions = position.compute_open_positions(shown_trades, pd.Timestamp(f'{selected_year}-12-31 23:59:59'))
-    mismatches = position.check_open_position_mismatches(shown_trades, positions)
+
     # Get current price of each instrument from Yahoo Finance
     # open_positions['Current Price'] = open_positions['Symbol'].apply(lambda symbol: yf.Ticker(symbol).info.get('regularMarketPrice'))
     progress_text.empty()
@@ -47,3 +47,12 @@ if trades is not None and not trades.empty:
         column_config = table_descriptor['column_config']
         column_config['Date/Time'] = st.column_config.DateColumn("Poslední transakce", help="Datum poslední transakce s tímto instrumentem")
         trades_display = st.dataframe(open_positions, hide_index=True, column_order=column_order, column_config=column_config)
+
+    # Display any mismatches in open positions if detected
+    mismatches = position.check_open_position_mismatches(shown_trades, positions)
+    if not mismatches.empty:
+        st.error('Nalezeny nesrovnalosti v otevřených pozicích. Bude třeba doplnit chybějící obchody.')
+        table_descriptor = ux.transaction_table_descriptor_native()
+        column_order = ('Symbol', 'Accumulated Quantity', 'Quantity', 'Date/Time')
+        column_config = table_descriptor['column_config']
+        st.dataframe(mismatches, hide_index=True, column_order=column_order, column_config=column_config)

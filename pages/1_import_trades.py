@@ -159,6 +159,7 @@ def main():
             st.session_state.pop('file_uploader', None)
             st.session_state.pop('trades', None)
             st.session_state.pop('actions', None)
+            st.session_state.pop('positions', None)
         st.button('🧹 Smazat obchody', on_click=lambda: clear_uploads(), use_container_width=True)
     
     return
