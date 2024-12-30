@@ -23,11 +23,13 @@ def compute_open_positions(trades, time=pd.Timestamp.now()):
 
 def check_open_position_mismatches(trades, positions):
     # Walk through every snapshot of open positions and check if it matches what we can compute from our trades
-    time_points = positions.groupby('Date/Time')
+    time_points = positions.groupby('Date')
     mismatches = pd.DataFrame()
     for time, snapshot in time_points:
         open_positions = compute_open_positions(trades, time)
         # Join and check for quantity mismatches or missing symbols
         merged = snapshot.merge(open_positions, on='Symbol', suffixes=('_snapshot', '_computed'), how='outer')
+        merged['Quantity Mismatch'] = merged['Accumulated Quantity'] - merged['Quantity']
+        mismatches = pd.concat([mismatches, merged[merged['Quantity Mismatch'] != 0]])
 
     return mismatches
