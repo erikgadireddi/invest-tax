@@ -14,4 +14,10 @@ def convert_position_history_columns(df):
     df['Mark-to-Market P/L Other'] = pd.to_numeric(df['Mark-to-Market P/L Other'], errors='coerce')
     df['Mark-to-Market P/L Total'] = pd.to_numeric(df['Mark-to-Market P/L Total'], errors='coerce')
     return df
-    
+
+# Compute open positions per symbol at a given time
+def compute_open_positions(trades, time=pd.Timestamp.now()):
+    trades = trades[trades['Date/Time'] <= time]
+    positions = trades.groupby('Symbol')[['Accumulated Quantity', 'Date/Time']].last().reset_index()
+    return positions[positions['Accumulated Quantity'] != 0]
+
