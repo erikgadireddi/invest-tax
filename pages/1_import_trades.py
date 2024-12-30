@@ -57,6 +57,8 @@ def main():
     def change_uploaded_files(trades, previous_uploads):
         if len(previous_uploads) > 0:
             trades.drop(trades.index, inplace=True)
+            actions.drop(actions.index, inplace=True)
+            positions.drop(positions.index, inplace=True)
         
     # Show file upload widget
     uploaded_files = st.file_uploader("Přetáhněte libovolné množství exportů (IBKR i Taxlite)", accept_multiple_files=True, type=['csv'], 

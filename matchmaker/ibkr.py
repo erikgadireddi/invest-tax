@@ -111,7 +111,7 @@ def import_transfers(file):
     df['MTM P/L'] = 0
     df['T. Price'] = 0
     df['C. Price'] = 0
-    df.drop(columns=['Transfers', 'Header', 'Asset Category', 'Currency', 'Date', 'Type', 'Direction', 'Xfer Company', 'Xfer Account', 'Qty', 'Xfer Price', 'Market Value', 'Cash Amount', 'Code'], inplace=True)
+    df.drop(columns=['Transfers', 'Header', 'Asset Category', 'Date', 'Type', 'Direction', 'Xfer Company', 'Xfer Account', 'Qty', 'Xfer Price', 'Market Value', 'Cash Amount', 'Code'], inplace=True)
     return normalize_trades(df)
 
 
@@ -133,6 +133,7 @@ def import_activity_statement(file):
     actions = import_corporate_actions(file)
     open_positions = import_open_positions(file, from_date, to_date)
     transfers = import_transfers(file)
+    trades = pd.concat([trades, transfers])
     return trades, actions, open_positions
 
 def import_all_statements(directory, tickers_dir=None):
