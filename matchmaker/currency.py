@@ -52,6 +52,8 @@ def add_czk_conversion_to_trades(trades, rates, use_yearly_rates=True):
     return trades
 
 def add_czk_conversion_to_pairs(trade_pairs, rates, use_yearly_rates=True):
+    if trade_pairs.empty:
+        return trade_pairs
     annotated_pairs = trade_pairs.copy()
     if use_yearly_rates:
         annotated_pairs['Buy CZK Rate'] = annotated_pairs.apply(lambda row: rates.loc[row['Buy Time'].year, row['Currency']] if row['Buy Time'].year in rates.index else np.nan, axis=1)

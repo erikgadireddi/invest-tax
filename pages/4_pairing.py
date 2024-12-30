@@ -68,6 +68,10 @@ def page():
 
     st.session_state.update(match_config=match_config)
     st.session_state.update(show_year=show_year)
+
+    if paired_trades.empty:
+        st.caption('Nebyly nalezeny žádné párované obchody.')
+        return
     
     if this_config['yearly_rates']:
         yearly_rates = currency.load_yearly_rates(st.session_state['settings']['currency_rates_dir'])

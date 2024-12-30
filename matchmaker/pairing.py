@@ -135,5 +135,9 @@ def pair_buy_sell(trades, pairs, strategy, from_year=None):
         trades.loc[buys.index, 'Uncovered Quantity'] = buys['Uncovered Quantity']
         trades.loc[sells.index, 'Covered Quantity'] = sells['Covered Quantity']
         trades.loc[buys.index, 'Covered Quantity'] = buys['Covered Quantity']
+    
+    if pairs.empty:
+        return trades[trades['Action'] == 'Open'], trades[trades['Action'] == 'Close'], pd.DataFrame()
+    
     pairs['Revenue'] = pairs['Proceeds'] + pairs['Cost']
     return trades[trades['Action'] == 'Open'], trades[trades['Action'] == 'Close'], pairs.sort_values(by=['Symbol','Sell Time', 'Buy Time'])
