@@ -23,7 +23,7 @@ def compute_open_positions(trades, time=pd.Timestamp.now()):
 
 def check_open_position_mismatches(trades, positions):
     # Walk through every snapshot of open positions and check if it matches what we can compute from our trades
-    time_points = positions.groupby('Date')
+    time_points = positions[positions['Quantity'] != 0].groupby('Date')
     mismatches = pd.DataFrame()
     for time, snapshot in time_points:
         open_positions = compute_open_positions(trades, time)
@@ -32,4 +32,6 @@ def check_open_position_mismatches(trades, positions):
         merged['Quantity Mismatch'] = merged['Accumulated Quantity'] - merged['Quantity']
         mismatches = pd.concat([mismatches, merged[merged['Quantity Mismatch'] != 0]])
 
+    # Fill in the Date column from Date/Time in case it was NaT
+    mismatches['Date'] = mismatches['Date'].fillna(mismatches['Date/Time'])
     return mismatches

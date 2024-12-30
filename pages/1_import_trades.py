@@ -140,7 +140,7 @@ def main():
                                 'Reverse Ratio': st.column_config.NumberColumn("Poměr", help="Počet akcií, na které byla jedna akcie rozdělena", format="%f")})
         unparsed = actions[actions['Action'] == 'Unknown']
         if len(unparsed) > 0:
-            with st.expander(f'Korporátní akce, kterým ne (:blue[{len(unparsed)}])'):
+            with st.expander(f'Korporátní akce, které neznáme (:blue[{len(unparsed)}])'):
                 st.dataframe(data=unparsed, hide_index=True, 
                              column_order=('Symbol', 'Date/Time', 'Description'),
                              column_config={
