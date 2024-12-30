@@ -75,7 +75,7 @@ def import_corporate_actions(file):
     df['Date/Time'] = pd.to_datetime(df['Date/Time'], format='%Y-%m-%d, %H:%M:%S')
     df['Symbol'] = df['Description'].apply(lambda x: parse_action_symbol(x))    
     df['Ratio'] = df[df['Action'] == 'Split']['Description'].apply(lambda x: get_split_ratio(x))
-    df['Ratio'] = pd.to_numeric(df['Ratio'].fillna(0.0))
+    df['Ratio'] = pd.to_numeric(df['Ratio'].infer_objects(copy=False).fillna(0.0))
     df.drop(columns=['Code'], inplace=True)
     df = actions.convert_action_columns(df)
     return df
@@ -92,6 +92,28 @@ def import_open_positions(file, date_from, date_to):
     df['Prior Date'] = date_from
     df['Current Date'] = date_to
     return position.convert_position_history_columns(df)
+
+def import_transfers(file):
+    df = dataframe_from_lines_with_prefix(file, 'Transfers,')
+    if df.empty:
+        # Transfers,Header,Asset Category,,Currency,Symbol,Date,Type,Direction,Xfer Company,Xfer Account,Qty,Xfer Price,Market Value,Realized P/L,Cash Amount,Code
+        df = pd.DataFrame(columns=['Transfers', 'Header', 'Asset Category', 'Currency', 'Symbol', 'Date', 'Type', 'Direction', 'Xfer Company', 'Xfer Account', 'Qty', 'Xfer Price', 'Market Value', 'Realized P/L', 'Cash Amount', 'Code'])
+    df = df[df['Asset Category'] == 'Stocks']
+    df['Date/Time'] = pd.to_datetime(df['Date'], format='%Y-%m-%d')
+    df['Action'] = 'Transfer'
+    df['Quantity'] = pd.to_numeric(df['Qty'].astype(str).str.replace(',', ''), errors='coerce')
+    # If Type is 'In' then Quantity is positive, if 'Out' then negative
+    df['Quantity'] = df.apply(lambda row: row['Quantity'] if row['Direction'] == 'In' else -row['Quantity'], axis=1)
+    df['Proceeds'] = pd.to_numeric(df['Market Value'].astype(str).str.replace(',', ''), errors='coerce')
+    df['Comm/Fee'] = 0
+    df['Basis'] = 0
+    df['Realized P/L'] = 0
+    df['MTM P/L'] = 0
+    df['T. Price'] = 0
+    df['C. Price'] = 0
+    df.drop(columns=['Transfers', 'Header', 'Asset Category', 'Currency', 'Date', 'Type', 'Direction', 'Xfer Company', 'Xfer Account', 'Qty', 'Xfer Price', 'Market Value', 'Cash Amount', 'Code'], inplace=True)
+    return normalize_trades(df)
+
 
 @st.cache_data()
 def import_activity_statement(file):
@@ -110,6 +132,7 @@ def import_activity_statement(file):
     trades = import_trades(file)
     actions = import_corporate_actions(file)
     open_positions = import_open_positions(file, from_date, to_date)
+    transfers = import_transfers(file)
     return trades, actions, open_positions
 
 def import_all_statements(directory, tickers_dir=None):

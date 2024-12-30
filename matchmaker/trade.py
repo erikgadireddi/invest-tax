@@ -16,7 +16,16 @@ def convert_trade_columns(df):
     df['C. Price'] = pd.to_numeric(df['C. Price'], errors='coerce')
     if 'Code' in df.columns:
        df['Action'] = df['Code'].apply(lambda x: 'Open' if 'O' in x else 'Close' if 'C' in x else 'Unknown')
-    df['Type'] = df.apply(lambda row: 'Long' if (row['Action'] == 'Open' and row['Quantity'] > 0) or (row['Action'] == 'Close' and row['Quantity'] < 0) else 'Short', axis=1)
+    # If action is not Transfer, then Type is Long if we're opening a position, Short if closing
+    def get_type(row):
+        if row['Quantity'] == 0:
+            return None
+        if row['Action'] == 'Transfer':
+            return 'In' if row['Quantity'] > 0 else 'Out'
+        if (row['Action'] == 'Close' and row['Quantity'] < 0) or (row['Action'] == 'Open' and row['Quantity'] > 0):
+            return 'Long'
+        return 'Short'
+    df['Type'] = df.apply(get_type, axis=1)
     return df
 
 # Process trades from raw DataFrame

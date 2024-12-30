@@ -112,11 +112,14 @@ def main():
     
     trades.sort_values(by=['Symbol', 'Date/Time'], inplace=True)
     st.caption(f':blue[{len(trades)}] nalezených obchodů.')
-    st.dataframe(data=trades, hide_index=True, width=1100, height=500, column_order=('Symbol', 'Date/Time', 'Quantity', 'Currency', 'T. Price', 'Proceeds', 'Comm/Fee', 'Realized P/L', 'Accumulated Quantity', 'Split Ratio'),
+    st.dataframe(data=trades, hide_index=True, width=1100, height=500, column_order=('Symbol', 'Date/Time', 'Action', 'Quantity', 'Currency', 'T. Price', 'Proceeds', 'Comm/Fee', 'Realized P/L', 'Accumulated Quantity', 'Split Ratio'),
                     column_config={
+                        'Date/Time': st.column_config.DatetimeColumn("Datum", help="Čas obchodu"),
+                        'Action': st.column_config.TextColumn("Akce", help="Typ obchodu: Buy, Sell, Dividend, Split, Transfer"),
                         'Realized P/L': st.column_config.NumberColumn("Profit", format="%.1f"), 
                         'Proceeds': st.column_config.NumberColumn("Objem", format="%.1f"), 
                         'Comm/Fee': st.column_config.NumberColumn("Poplatky", format="%.1f"), 
+                        'T. Price': st.column_config.NumberColumn("Cena", format="%.1f", help="Cena jednoho kusu instrumentu"),
                         'Quantity': st.column_config.NumberColumn("Počet", help="Počet kusů daného instrumentu", format="%f"), 
                         'Accumulated Quantity': st.column_config.NumberColumn("Pozice", help="Otevřené pozice po této transakci. Negativní znamenají shorty. "
                                                                                 "Pokud toto číslo nesedí s realitou, v importovaných transakcích se nenacházejí všechny obchody", format="%f"),
