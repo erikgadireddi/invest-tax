@@ -35,6 +35,7 @@ if trades is not None and not trades.empty:
         selected_year = shown_trades['Date/Time'].dt.year.max()
 
     open_positions = position.compute_open_positions(shown_trades, pd.Timestamp(f'{selected_year}-12-31 23:59:59'))
+    mismatches = position.check_open_position_mismatches(shown_trades, positions)
     # Get current price of each instrument from Yahoo Finance
     # open_positions['Current Price'] = open_positions['Symbol'].apply(lambda symbol: yf.Ticker(symbol).info.get('regularMarketPrice'))
     progress_text.empty()

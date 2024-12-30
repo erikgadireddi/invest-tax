@@ -32,6 +32,7 @@ def page():
     # Matching configuration is a dictionary[year] of:
     #  strategy: FIFO, LIFO, AverageCost, MaxLoss, MaxProfit
     #  use_yearly_rates: bool
+    trades = trades[(trades['Action'] == 'Open') | (trades['Action'] == 'Close')] # Filter out transfers and other transactions
     strategies = ['FIFO', 'LIFO', 'AverageCost', 'MaxLoss', 'MaxProfit']
     years = sorted(trades['Year'].unique())
     for year in years:
