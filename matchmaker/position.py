@@ -29,9 +29,23 @@ def check_open_position_mismatches(trades, positions):
         open_positions = compute_open_positions(trades, time)
         # Join and check for quantity mismatches or missing symbols
         merged = snapshot.merge(open_positions, on='Symbol', suffixes=('_snapshot', '_computed'), how='outer')
-        merged['Quantity Mismatch'] = merged['Accumulated Quantity'] - merged['Quantity']
+        merged['Quantity Mismatch'] = merged['Accumulated Quantity'].fillna(0) - merged['Quantity'].fillna(0)
         mismatches = pd.concat([mismatches, merged[merged['Quantity Mismatch'] != 0]])
 
     # Fill in the Date column from Date/Time in case it was NaT
     mismatches['Date'] = mismatches['Date'].fillna(mismatches['Date/Time'])
-    return mismatches
+    # Group by possibly renamed symbols and check if we have pairs of mismatches
+    guesses = pd.DataFrame()
+    grouped_mismatches = mismatches.sort_values(by='Date').groupby(mismatches['Quantity Mismatch'].abs())
+    for name, group in grouped_mismatches:
+        if len(group) == 2:
+            to_symbol = group.iloc[0]['Symbol']
+            from_symbol = group.iloc[1]['Symbol']
+            action = 'Rename'
+            row = pd.DataFrame([{'From': from_symbol, 'To': to_symbol, 'Action': action}])
+            guesses = pd.concat([guesses, row])
+
+    # Return only mismatches with no entry in guesses (From and To)
+    mismatches = mismatches[~mismatches['Symbol'].isin(guesses['From'])]
+    mismatches = mismatches[~mismatches['Symbol'].isin(guesses['To'])]
+    return mismatches, guesses

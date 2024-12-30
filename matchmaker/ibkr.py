@@ -81,17 +81,30 @@ def import_corporate_actions(file):
     return df
 
 def import_open_positions(file, date_from, date_to):
-    df = dataframe_from_lines_with_prefix(file, 'Mark-to-Market Performance Summary,')
+    # Format: Net Stock Position Summary,Header,Asset Category,Currency,Symbol,Description,Shares at IB,Shares Borrowed,Shares Lent,Net Shares
+    # Example: Net Stock Position Summary,Data,Stocks,USD,FB,META PLATFORMS INC-CLASS A,119,0,0,119
+    df = dataframe_from_lines_with_prefix(file, 'Net Stock Position Summary,')
     if df.empty:
-        # Mark-to-Market Performance Summary,Header,Asset Category,Symbol,Prior Quantity,Current Quantity,Prior Price,
-        # Current Price,Mark-to-Market P/L Position,Mark-to-Market P/L Transaction,Mark-to-Market P/L Commissions,Mark-to-Market P/L Other,Mark-to-Market P/L Total,Code
-        df = pd.DataFrame(columns=['Mark-to-Market Performance Summary', 'Header', 'Asset Category', 'Symbol', 'Prior Quantity', 'Current Quantity', 'Prior Price', 'Current Price',
-                                   'Mark-to-Market P/L Position','Mark-to-Market P/L Transaction','Mark-to-Market P/L Commissions','Mark-to-Market P/L Other','Mark-to-Market P/L Total','Code'])
+        df = pd.DataFrame(columns=['Net Stock Position Summary', 'Header', 'Asset Category', 'Currency', 'Symbol', 'Description', 'Shares at IB', 'Shares Borrowed', 'Shares Lent', 'Net Shares'])
     df = df[df['Asset Category'] == 'Stocks']
-    df.drop(columns=['Mark-to-Market Performance Summary', 'Header', 'Asset Category', 'Code'], inplace=True)
-    df['Prior Date'] = date_from
-    df['Current Date'] = date_to
-    return position.convert_position_history_columns(df)
+    df.drop(columns=['Net Stock Position Summary', 'Header', 'Asset Category'], inplace=True)
+    df['Date/Time'] = date_to
+    df['Quantity'] = pd.to_numeric(df['Net Shares'])
+    return position.convert_position_columns(df)
+
+    if False:
+        # Old format that doesn't reflect symbol changes
+        df = dataframe_from_lines_with_prefix(file, 'Mark-to-Market Performance Summary,')
+        if df.empty:
+            # Mark-to-Market Performance Summary,Header,Asset Category,Symbol,Prior Quantity,Current Quantity,Prior Price,
+            # Current Price,Mark-to-Market P/L Position,Mark-to-Market P/L Transaction,Mark-to-Market P/L Commissions,Mark-to-Market P/L Other,Mark-to-Market P/L Total,Code
+            df = pd.DataFrame(columns=['Mark-to-Market Performance Summary', 'Header', 'Asset Category', 'Symbol', 'Prior Quantity', 'Current Quantity', 'Prior Price', 'Current Price',
+                                    'Mark-to-Market P/L Position','Mark-to-Market P/L Transaction','Mark-to-Market P/L Commissions','Mark-to-Market P/L Other','Mark-to-Market P/L Total','Code'])
+        df = df[df['Asset Category'] == 'Stocks']
+        df.drop(columns=['Mark-to-Market Performance Summary', 'Header', 'Asset Category', 'Code'], inplace=True)
+        df['Prior Date'] = date_from
+        df['Current Date'] = date_to
+        return position.convert_position_history_columns(df)
 
 def import_transfers(file):
     df = dataframe_from_lines_with_prefix(file, 'Transfers,')
