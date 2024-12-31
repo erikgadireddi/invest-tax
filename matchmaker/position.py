@@ -45,7 +45,8 @@ def check_open_position_mismatches(trades, positions):
             row = pd.DataFrame([{'From': from_symbol, 'To': to_symbol, 'Action': action}])
             guesses = pd.concat([guesses, row])
 
-    # Return only mismatches with no entry in guesses (From and To)
-    mismatches = mismatches[~mismatches['Symbol'].isin(guesses['From'])]
-    mismatches = mismatches[~mismatches['Symbol'].isin(guesses['To'])]
+    if not guesses.empty:
+        # Return only mismatches with no entry in guesses (From and To)
+        mismatches = mismatches[~mismatches['Symbol'].isin(guesses['From'])]
+        mismatches = mismatches[~mismatches['Symbol'].isin(guesses['To'])]
     return mismatches, guesses

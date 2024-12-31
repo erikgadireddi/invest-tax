@@ -30,6 +30,8 @@ def convert_trade_columns(df):
 
 # Process trades from raw DataFrame
 def normalize_trades(df):
+    if df.empty:
+        return df
     df['Year'] = df['Date/Time'].dt.year
     df = convert_trade_columns(df)
     df['Orig. Quantity'] = df['Quantity']

@@ -48,7 +48,7 @@ def import_trades(file):
 def import_corporate_actions(file):
     df = dataframe_from_lines_with_prefix(file, 'Corporate Actions,')
     if df.empty:
-        df = pd.DataFrame(columns=['Corporate Actions', 'Header', 'Asset Category', 'Date/Time', 'Currency', 'Symbol', 'Quantity', 'Ratio', 'Description', 'Proceeds', 'Value', 'Realized P/L', 'Action', 'Code'])
+        df = pd.DataFrame(columns=['Corporate Actions', 'Header', 'Asset Category', 'Currency', 'Report Date', 'Date/Time', 'Description', 'Quantity', 'Proceeds', 'Value', 'Realized P/L', 'Action', 'Symbol', 'Ratio', 'Code'])
     df = df[df['Asset Category'] == 'Stocks']
     df.drop(columns=['Corporate Actions', 'Header', 'Asset Category'], inplace=True)
     
@@ -82,7 +82,8 @@ def import_corporate_actions(file):
     
     df['Quantity'] = pd.to_numeric(df['Quantity'].astype(str).str.replace(',', ''), errors='coerce')
     df['Date/Time'] = pd.to_datetime(df['Date/Time'], format='%Y-%m-%d, %H:%M:%S')
-    df[['Action', 'Symbol', 'Ratio']] = df['Description'].apply(lambda x: pd.Series(parse_action_text(x)))
+    if not df.empty:
+        df[['Action', 'Symbol', 'Ratio']] = df['Description'].apply(lambda x: pd.Series(parse_action_text(x)))
     df.drop(columns=['Code'], inplace=True)
     df = actions.convert_action_columns(df)
     return df
@@ -122,6 +123,26 @@ def import_transfers(file):
     df.drop(columns=['Transfers', 'Header', 'Asset Category', 'Date', 'Type', 'Direction', 'Xfer Company', 'Xfer Account', 'Qty', 'Xfer Price', 'Market Value', 'Cash Amount', 'Code'], inplace=True)
     return normalize_trades(df)
 
+def generate_transfers_from_actions(actions):
+    spinoffs = actions[actions['Action'] == 'Spinoff']
+    transfers = pd.DataFrame()
+    for index, spinoff in spinoffs.iterrows():
+        transfer = {
+            'Date/Time': spinoff['Date/Time'],
+            'Currency': spinoff['Currency'],
+            'Symbol': spinoff['Symbol'],
+            'Quantity': spinoff['Quantity'],
+            'Proceeds': 0,
+            'Comm/Fee': 0,
+            'Basis': 0,
+            'Realized P/L': 0,
+            'MTM P/L': 0,
+            'T. Price': 0,
+            'C. Price': 0,
+            'Action': 'Transfer'
+        }
+        transfers = pd.concat([transfers, pd.DataFrame([transfer])], ignore_index=True)
+    return normalize_trades(transfers)
 
 @st.cache_data()
 def import_activity_statement(file):
@@ -141,6 +162,7 @@ def import_activity_statement(file):
     actions = import_corporate_actions(file)
     open_positions = import_open_positions(file, from_date, to_date)
     transfers = import_transfers(file)
+    transfers = pd.concat([transfers, generate_transfers_from_actions(actions)])
     trades = pd.concat([trades, transfers])
     return trades, actions, open_positions
 

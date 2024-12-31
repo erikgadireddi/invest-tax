@@ -138,6 +138,17 @@ def main():
                             column_config={
                                 "Date/Time": st.column_config.DatetimeColumn("Datum", help="Čas splitu"),
                                 'Reverse Ratio': st.column_config.NumberColumn("Poměr", help="Počet akcií, na které byla jedna akcie rozdělena", format="%f")})
+        spinoffs = actions[actions['Action'] == 'Spinoff'].copy()
+        if len(spinoffs) > 0:
+            with st.expander(f'Vytvoření nových akcií (spinoffy), kterým rozumíme (:blue[{len(spinoffs)}])'):
+                st.dataframe(data=spinoffs, hide_index=True, 
+                            column_order=('Symbol', 'Date/Time', 'Quantity', 'Ratio', 'Description'),
+                            column_config={
+                                "Date/Time": st.column_config.DatetimeColumn("Datum", help="Čas spinoffu"),
+                                'Quantity': st.column_config.NumberColumn("Počet", help="Počet nových akcií"),
+                                'Ratio': st.column_config.NumberColumn("Poměr", help="Poměr nových akcií za staré", format="%.3f"),
+                                'Description': st.column_config.NumberColumn("Popis", help="Textový popis spinoffu")})
+        
         unparsed = actions[actions['Action'] == 'Unknown']
         if len(unparsed) > 0:
             with st.expander(f'Korporátní akce, které neznáme (:blue[{len(unparsed)}])'):
