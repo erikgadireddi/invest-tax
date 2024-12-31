@@ -51,60 +51,55 @@ def import_corporate_actions(file):
         df = pd.DataFrame(columns=['Corporate Actions', 'Header', 'Asset Category', 'Date/Time', 'Currency', 'Symbol', 'Quantity', 'Ratio', 'Description', 'Proceeds', 'Value', 'Realized P/L', 'Action', 'Code'])
     df = df[df['Asset Category'] == 'Stocks']
     df.drop(columns=['Corporate Actions', 'Header', 'Asset Category'], inplace=True)
-    df['Action'] = df['Description'].apply(lambda x: 'Dividend' if 'Dividend' in x else 'Split' if 'Split' in x else 'Unknown')
     
-    def parse_action_symbol(text):
-        match = re.search(r'^(\w+)\(\w+\)', text)
-        if match:
-            return match.group(1)
-        return None
+    def parse_action_text(text):
+        action, symbol, ratio = parse_split_text(text)
+        if not action:
+            action, symbol, ratio = parse_spinoff_text(text)
+        if not action:
+            match = re.search(r'^(\w+)\(\w+\)', text)
+            if match:
+                action, symbol, ratio = 'Unknown', match.group(1), 0.0
+        if not action and 'Dividend' in text:
+            action, symbol, ratio = 'Dividend', None, None
+        if not action:
+            action, symbol, ratio = 'Unknown', None, None
+        return action, symbol, ratio
     
     def parse_split_text(text):
         match = re.search(r'([\w\.]+)\(\w+\) Split (\d+) for (\d+)', text)
         if match:
-            return match.group(1), int(match.group(2)), int(match.group(3))
+            ratio = float(match.group(3)) / float(match.group(2))
+            return 'Split', match.group(1), ratio
         return None, None, None
     
-    def get_split_ratio(text):
-        ticker, before, after = parse_split_text(text)
-        if before is not None and after is not None:
-            return float(after) / before
-        return np.nan
+    def parse_spinoff_text(text):
+        match = re.search(r'^(\w+)\(\w+\) Spinoff\s+(\d+) for (\d+) \((\w+),.+\)', text)
+        if match:
+            ratio = float(match.group(2)) / float(match.group(3))
+            return 'Spinoff', match.group(4), ratio
+        return None, None, None
     
     df['Quantity'] = pd.to_numeric(df['Quantity'].astype(str).str.replace(',', ''), errors='coerce')
     df['Date/Time'] = pd.to_datetime(df['Date/Time'], format='%Y-%m-%d, %H:%M:%S')
-    df['Symbol'] = df['Description'].apply(lambda x: parse_action_symbol(x))    
-    df['Ratio'] = df[df['Action'] == 'Split']['Description'].apply(lambda x: get_split_ratio(x))
-    df['Ratio'] = pd.to_numeric(df['Ratio'].infer_objects(copy=False).fillna(0.0))
+    df[['Action', 'Symbol', 'Ratio']] = df['Description'].apply(lambda x: pd.Series(parse_action_text(x)))
     df.drop(columns=['Code'], inplace=True)
     df = actions.convert_action_columns(df)
     return df
 
 def import_open_positions(file, date_from, date_to):
-    # Format: Net Stock Position Summary,Header,Asset Category,Currency,Symbol,Description,Shares at IB,Shares Borrowed,Shares Lent,Net Shares
-    # Example: Net Stock Position Summary,Data,Stocks,USD,FB,META PLATFORMS INC-CLASS A,119,0,0,119
-    df = dataframe_from_lines_with_prefix(file, 'Net Stock Position Summary,')
+    # Old format that doesn't reflect symbol changes
+    df = dataframe_from_lines_with_prefix(file, 'Mark-to-Market Performance Summary,')
     if df.empty:
-        df = pd.DataFrame(columns=['Net Stock Position Summary', 'Header', 'Asset Category', 'Currency', 'Symbol', 'Description', 'Shares at IB', 'Shares Borrowed', 'Shares Lent', 'Net Shares'])
+        # Mark-to-Market Performance Summary,Header,Asset Category,Symbol,Prior Quantity,Current Quantity,Prior Price,
+        # Current Price,Mark-to-Market P/L Position,Mark-to-Market P/L Transaction,Mark-to-Market P/L Commissions,Mark-to-Market P/L Other,Mark-to-Market P/L Total,Code
+        df = pd.DataFrame(columns=['Mark-to-Market Performance Summary', 'Header', 'Asset Category', 'Symbol', 'Prior Quantity', 'Current Quantity', 'Prior Price', 'Current Price',
+                                'Mark-to-Market P/L Position','Mark-to-Market P/L Transaction','Mark-to-Market P/L Commissions','Mark-to-Market P/L Other','Mark-to-Market P/L Total','Code'])
     df = df[df['Asset Category'] == 'Stocks']
-    df.drop(columns=['Net Stock Position Summary', 'Header', 'Asset Category'], inplace=True)
-    df['Date/Time'] = date_to
-    df['Quantity'] = pd.to_numeric(df['Net Shares'])
-    return position.convert_position_columns(df)
-
-    if False:
-        # Old format that doesn't reflect symbol changes
-        df = dataframe_from_lines_with_prefix(file, 'Mark-to-Market Performance Summary,')
-        if df.empty:
-            # Mark-to-Market Performance Summary,Header,Asset Category,Symbol,Prior Quantity,Current Quantity,Prior Price,
-            # Current Price,Mark-to-Market P/L Position,Mark-to-Market P/L Transaction,Mark-to-Market P/L Commissions,Mark-to-Market P/L Other,Mark-to-Market P/L Total,Code
-            df = pd.DataFrame(columns=['Mark-to-Market Performance Summary', 'Header', 'Asset Category', 'Symbol', 'Prior Quantity', 'Current Quantity', 'Prior Price', 'Current Price',
-                                    'Mark-to-Market P/L Position','Mark-to-Market P/L Transaction','Mark-to-Market P/L Commissions','Mark-to-Market P/L Other','Mark-to-Market P/L Total','Code'])
-        df = df[df['Asset Category'] == 'Stocks']
-        df.drop(columns=['Mark-to-Market Performance Summary', 'Header', 'Asset Category', 'Code'], inplace=True)
-        df['Prior Date'] = date_from
-        df['Current Date'] = date_to
-        return position.convert_position_history_columns(df)
+    df.drop(columns=['Mark-to-Market Performance Summary', 'Header', 'Asset Category', 'Code'], inplace=True)
+    df['Prior Date'] = date_from
+    df['Current Date'] = date_to
+    return position.convert_position_history_columns(df)
 
 def import_transfers(file):
     df = dataframe_from_lines_with_prefix(file, 'Transfers,')
