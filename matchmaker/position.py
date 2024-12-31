@@ -18,7 +18,7 @@ def convert_position_history_columns(df):
 # Compute open positions per symbol at a given time
 def compute_open_positions(trades, time=pd.Timestamp.now()):
     trades = trades[trades['Date/Time'] <= time]
-    positions = trades.groupby('Symbol')[['Accumulated Quantity', 'Date/Time']].last().reset_index()
+    positions = trades.groupby('Symbol')[['Accumulated Quantity', 'Date/Time', 'Split Ratio']].last().reset_index()
     return positions[positions['Accumulated Quantity'] != 0]
 
 def check_open_position_mismatches(trades, positions):
@@ -29,7 +29,7 @@ def check_open_position_mismatches(trades, positions):
         open_positions = compute_open_positions(trades, time)
         # Join and check for quantity mismatches or missing symbols
         merged = snapshot.merge(open_positions, on='Symbol', suffixes=('_snapshot', '_computed'), how='outer')
-        merged['Quantity Mismatch'] = merged['Accumulated Quantity'].fillna(0) - merged['Quantity'].fillna(0)
+        merged['Quantity Mismatch'] = merged['Accumulated Quantity'].fillna(0) - merged['Quantity'].fillna(0) * merged['Split Ratio'].fillna(1)
         mismatches = pd.concat([mismatches, merged[merged['Quantity Mismatch'] != 0]])
 
     # Fill in the Date column from Date/Time in case it was NaT

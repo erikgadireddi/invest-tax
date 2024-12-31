@@ -128,7 +128,7 @@ def generate_transfers_from_actions(actions):
     transfers = pd.DataFrame()
     for index, spinoff in spinoffs.iterrows():
         transfer = {
-            'Date/Time': spinoff['Date/Time'],
+            'Date/Time': spinoff['Date/Time'] - pd.Timedelta(seconds=1),
             'Currency': spinoff['Currency'],
             'Symbol': spinoff['Symbol'],
             'Quantity': spinoff['Quantity'],
