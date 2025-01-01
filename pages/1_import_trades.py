@@ -93,7 +93,9 @@ def main():
             imported_trades, imported_actions, imported_positions = import_trade_file(uploaded_file)
             if len(imported_actions) > 0:
                 actions = pd.concat([imported_actions, actions])
+            # Merge open positions and drop duplicates
             positions = pd.concat([imported_positions, positions])
+            positions.drop_duplicates(subset=['Symbol', 'Date'], inplace=True)
             loaded_count += len(imported_trades)
             import_state.write(f'Slučuji :blue[{len(imported_trades)}] obchodů...')
             trades = merge_trades(trades, imported_trades)

@@ -50,15 +50,14 @@ if trades is not None and not trades.empty:
         trades_display = st.dataframe(open_positions, hide_index=True, column_order=column_order, column_config=column_config)
 
     # Display any mismatches in open positions if detected
-    mismatches, guesses = position.check_open_position_mismatches(shown_trades, positions)
+    mismatches, guesses = position.check_open_position_mismatches(shown_trades, positions, max_date)
     if not guesses[guesses['Action'] == 'Rename'].empty:
-        st.warning('Nalezeny možné přejmenování instrumentů. Zkontrolujte, zda se jedná o správné párování.')
+        st.warning('Nalezeny možné přejmenování instrumentů. Pokud se nejedná o správné párování, chybí obchody na jednom z těchto symbolů a je třeba je doplnit.')
         column_order = ('From', 'To')
         column_config = {'From': st.column_config.TextColumn("Původní", help="Původní symbol"), 
                          'To': st.column_config.TextColumn("Nový", help="Nový symbol")}
         st.dataframe(guesses[guesses['Action'] == 'Rename'], hide_index=True, column_order=column_order, column_config=column_config)
 
-    mismatches = mismatches[mismatches['Date'] <= max_date]
     mismatches['Quantity'] = mismatches['Quantity'].fillna(0)
     mismatches['Accumulated Quantity'] = mismatches['Accumulated Quantity'].fillna(0)
     if not mismatches.empty:
