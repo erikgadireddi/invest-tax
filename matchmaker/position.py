@@ -38,14 +38,14 @@ def check_open_position_mismatches(trades, positions, max_date=pd.Timestamp.now(
     mismatches.reset_index(drop=True, inplace=True)
     mismatches['Date'] = mismatches['Date'].fillna(mismatches['Date/Time'])
     # Group by possibly renamed symbols and check if we have pairs of mismatches
-    guesses = pd.DataFrame(columns=['From', 'To', 'Action'])
+    guesses = pd.DataFrame(columns=['From', 'To', 'Action', 'Date'])
     grouped_mismatches = mismatches.sort_values(by='Snapshot Date').groupby([mismatches['Quantity Mismatch'].abs(), mismatches['Snapshot Date']])
     for name, group in grouped_mismatches:
         if len(group) == 2:
             to_symbol = group.iloc[0]['Symbol']
             from_symbol = group.iloc[1]['Symbol']
             action = 'Rename'
-            row = pd.DataFrame([{'From': from_symbol, 'To': to_symbol, 'Action': action}])
+            row = pd.DataFrame([{'From': from_symbol, 'To': to_symbol, 'Action': action, 'Date': group.iloc[0]['Snapshot Date'], 'Year': group.iloc[0]['Snapshot Date'].year}])
             guesses = pd.concat([guesses, row])
 
     if not guesses.empty:

@@ -33,7 +33,10 @@ if trades is not None and not trades.empty:
     selected_year = st.session_state.get('year')
     if selected_year is None:
         selected_year = shown_trades['Date/Time'].dt.year.max()
-
+        min_date = pd.Timestamp.min
+    else:
+        min_date = pd.Timestamp(f'{selected_year}-01-01 00:00:00') 
+    
     max_date = pd.Timestamp(f'{selected_year}-12-31 23:59:59')
     open_positions = position.compute_open_positions(shown_trades, max_date)
 
@@ -51,11 +54,13 @@ if trades is not None and not trades.empty:
 
     # Display any mismatches in open positions if detected
     mismatches, guesses = position.check_open_position_mismatches(shown_trades, positions, max_date)
+    guesses = guesses[(guesses['Date'] <= max_date) & (guesses['Date'] >= min_date)]
     if not guesses[guesses['Action'] == 'Rename'].empty:
         st.warning('Nalezeny možné přejmenování instrumentů. Pokud se nejedná o správné párování, chybí obchody na jednom z těchto symbolů a je třeba je doplnit.')
-        column_order = ('From', 'To')
+        column_order = ('From', 'To', 'Year')
         column_config = {'From': st.column_config.TextColumn("Původní", help="Původní symbol"), 
-                         'To': st.column_config.TextColumn("Nový", help="Nový symbol")}
+                         'To': st.column_config.TextColumn("Nový", help="Nový symbol"),
+                         'Year': st.column_config.NumberColumn("Rok", help="Rok, ve kterém byla provedena změna", format="%d")}
         st.dataframe(guesses[guesses['Action'] == 'Rename'], hide_index=True, column_order=column_order, column_config=column_config)
 
     mismatches['Quantity'] = mismatches['Quantity'].fillna(0)

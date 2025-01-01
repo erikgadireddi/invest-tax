@@ -140,7 +140,7 @@ def main():
                             column_config={
                                 "Date/Time": st.column_config.DatetimeColumn("Datum", help="Čas splitu"),
                                 'Reverse Ratio': st.column_config.NumberColumn("Poměr", help="Počet akcií, na které byla jedna akcie rozdělena", format="%f")})
-        spinoffs = actions[actions['Action'] == 'Spinoff'].copy()
+        spinoffs = actions[(actions['Action'] == 'Spinoff') | (actions['Action'] == 'Acquisition')].copy()
         if len(spinoffs) > 0:
             with st.expander(f'Vytvoření nových akcií (spinoffy), kterým rozumíme (:blue[{len(spinoffs)}])'):
                 st.dataframe(data=spinoffs, hide_index=True, 
