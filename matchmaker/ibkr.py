@@ -57,6 +57,8 @@ def import_corporate_actions(file):
         if not action:
             action, symbol, ratio = parse_spinoff_text(text)
         if not action:
+            action, symbol, ratio = parse_acquisition_text(text)
+        if not action:
             match = re.search(r'^(\w+)\(\w+\)', text)
             if match:
                 action, symbol, ratio = 'Unknown', match.group(1), 0.0
@@ -67,17 +69,25 @@ def import_corporate_actions(file):
         return action, symbol, ratio
     
     def parse_split_text(text):
-        match = re.search(r'([\w\.]+)\(\w+\) Split (\d+) for (\d+)', text)
+        match = re.search(r'([\w\.]+)\(\w+\) Split (\d+) for (\d+)', text, re.IGNORECASE)
         if match:
             ratio = float(match.group(3)) / float(match.group(2))
             return 'Split', match.group(1), ratio
         return None, None, None
     
     def parse_spinoff_text(text):
-        match = re.search(r'^(\w+)\(\w+\) Spinoff\s+(\d+) for (\d+) \((\w+),.+\)', text)
+        match = re.search(r'^(\w+)\(\w+\) Spinoff\s+(\d+) for (\d+) \((\w+),.+\)', text, re.IGNORECASE)
         if match:
             ratio = float(match.group(2)) / float(match.group(3))
             return 'Spinoff', match.group(4), ratio
+        return None, None, None
+    
+    def parse_acquisition_text(text):
+        # e.g.: ATVI(US00507V1098) Merged(Acquisition) FOR USD 95.00 PER SHARE
+        match = re.search(r'^(\w+)\(\w+\) Merged\(Acquisition\) FOR (\w+) (\d+\.\d+) PER SHARE', text, re.IGNORECASE)
+        if match:
+            ratio = float(match.group(3))
+            return 'Acquisition', match.group(1), ratio
         return None, None, None
     
     df['Quantity'] = pd.to_numeric(df['Quantity'].astype(str).str.replace(',', ''), errors='coerce')
@@ -111,8 +121,6 @@ def import_transfers(file):
     df['Date/Time'] = pd.to_datetime(df['Date'], format='%Y-%m-%d')
     df['Action'] = 'Transfer'
     df['Quantity'] = pd.to_numeric(df['Qty'].astype(str).str.replace(',', ''), errors='coerce')
-    # If Type is 'In' then Quantity is positive, if 'Out' then negative
-    df['Quantity'] = df.apply(lambda row: row['Quantity'] if row['Direction'] == 'In' else -row['Quantity'], axis=1)
     df['Proceeds'] = pd.to_numeric(df['Market Value'].astype(str).str.replace(',', ''), errors='coerce')
     df['Comm/Fee'] = 0
     df['Basis'] = 0
@@ -124,7 +132,7 @@ def import_transfers(file):
     return normalize_trades(df)
 
 def generate_transfers_from_actions(actions):
-    spinoffs = actions[actions['Action'] == 'Spinoff']
+    spinoffs = actions[(actions['Action'] == 'Spinoff') | (actions['Action'] == 'Acquisition')]
     transfers = pd.DataFrame()
     for index, spinoff in spinoffs.iterrows():
         transfer = {
@@ -132,19 +140,19 @@ def generate_transfers_from_actions(actions):
             'Currency': spinoff['Currency'],
             'Symbol': spinoff['Symbol'],
             'Quantity': spinoff['Quantity'],
-            'Proceeds': 0,
+            'Proceeds': spinoff['Proceeds'],
             'Comm/Fee': 0,
             'Basis': 0,
-            'Realized P/L': 0,
+            'Realized P/L': spinoff['Realized P/L'],
             'MTM P/L': 0,
-            'T. Price': 0,
+            'T. Price': spinoff['Proceeds'] / abs(spinoff['Quantity'])  if spinoff['Quantity'] != 0 else 0,
             'C. Price': 0,
             'Action': 'Transfer'
         }
         transfers = pd.concat([transfers, pd.DataFrame([transfer])], ignore_index=True)
     return normalize_trades(transfers)
 
-@st.cache_data()
+# @st.cache_data()
 def import_activity_statement(file):
     file.seek(0)
     # 2nd line: Statement,Data,Title,Activity Statement
