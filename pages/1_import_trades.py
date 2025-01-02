@@ -104,9 +104,17 @@ def main():
 
         import_state.write(f'Nalezeno :blue[{loaded_count}] obchodů, z nichž :green[{len(trades) - trades_count}] je nových.')
         actions.drop_duplicates(inplace=True)
-
+        
         if len(trades) > 0:
-            trades = process_after_import(trades, actions)
+            trades = adjust_for_splits(trades, actions)
+            # Create a map of symbols that were renamed
+            symbols = pd.DataFrame(trades['Symbol'].unique(), columns=['Symbol'])
+            symbols['Ticker'] = symbols['Symbol']
+            mismatches, guesses = position.check_open_position_mismatches(trades, positions)
+            for index, row in guesses.iterrows():
+                symbols.loc[symbols['Symbol'] == row['From'], 'Ticker'] = row['To'] # Add rename time, use this in 5_positions instead of guesses
+            trades = compute_accumulated_positions(trades, symbols)
+            
         st.session_state.trades = trades
         st.session_state.actions = actions
         st.session_state.positions = positions

@@ -58,7 +58,7 @@ def merge_trades(existing, new):
 # Recompute dependent columns after importing new trades
 @st.cache_data()
 def process_after_import(trades, actions=None):
-    trades = _adjust_for_splits(trades, actions)
+    trades = adjust_for_splits(trades, actions)
     trades = _populate_extra_trade_columns(trades)
     return trades
 
@@ -79,19 +79,20 @@ def _add_split_data(trades, split_actions):
 # Add or refresh dynamically computed columns
 @st.cache_data()
 def _populate_extra_trade_columns(trades):
-    trades = _add_accumulated_positions(trades)
+    trades = compute_accumulated_positions(trades)
     return trades
 
 # Compute accumulated positions for each symbol by simulating all trades
 @st.cache_data()
-def _add_accumulated_positions(trades):
+def compute_accumulated_positions(trades, symbols):
+    trades = trades.merge(symbols, on='Symbol', how='left')
     trades = trades.sort_values(by=['Date/Time'])
-    trades['Accumulated Quantity'] = trades.groupby('Symbol')['Quantity'].cumsum()
+    trades['Accumulated Quantity'] = trades.groupby('Ticker')['Quantity'].cumsum()
     return trades
 
 # Adjust quantities and trade prices for splits
 @st.cache_data()
-def _adjust_for_splits(trades, split_actions):
+def adjust_for_splits(trades, split_actions):
     if split_actions is not None and not split_actions.empty:
         _add_split_data(trades, split_actions)
         trades['Quantity'] = trades['Orig. Quantity'] * trades['Split Ratio']
