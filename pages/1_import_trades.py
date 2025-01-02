@@ -101,15 +101,20 @@ def main():
 
         if len(state.trades) > 0:
             state.trades = adjust_for_splits(state.trades, state.actions)
-            # Create a map of symbols that were renamed
+            # Create a map of symbols that could be renamed (but we don't know for now)
             state.symbols = pd.DataFrame(state.trades['Symbol'].unique(), columns=['Symbol'])
             state.symbols['Ticker'] = state.symbols['Symbol']
             state.trades = compute_accumulated_positions(state.trades, state.symbols)
-            mismatches, guesses = position.check_open_position_mismatches(state.trades, state.positions)
-            for index, row in guesses.iterrows():
+            state.positions = state.positions.merge(state.symbols[['Symbol', 'Ticker']], on='Symbol', how='left')
+            mismatches, renames = position.check_open_position_mismatches(state.trades, state.positions)
+            for index, row in renames.iterrows():
                 state.symbols.loc[state.symbols['Symbol'] == row['From'], ['Ticker', 'Date']] = [row['To'], row['Date']] # Use this in 5_positions instead of guesses
-            if len(guesses) > 0:
+            # Now we can adjust the trades for the renames
+            if len(renames) > 0:
                 state.trades = compute_accumulated_positions(state.trades, state.symbols)
+                state.positions.drop(columns=['Ticker'], inplace=True)
+                state.positions = state.positions.merge(state.symbols[['Symbol', 'Ticker']], on='Symbol', how='left')
+            
             
         state.save_session()
 

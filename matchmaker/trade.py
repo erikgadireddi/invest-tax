@@ -86,7 +86,7 @@ def _populate_extra_trade_columns(trades):
 @st.cache_data()
 def compute_accumulated_positions(trades, symbols):
     trades.drop(columns=['Ticker'], errors='ignore', inplace=True)
-    trades = trades.reset_index().merge(symbols, on='Symbol', how='left').set_index('Hash')
+    trades = trades.reset_index().merge(symbols[['Symbol', 'Ticker']], on='Symbol', how='left').set_index('Hash')
     trades.sort_values(by=['Date/Time'], inplace=True)
     trades['Accumulated Quantity'] = trades.groupby('Ticker')['Quantity'].cumsum()
     return trades

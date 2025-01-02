@@ -16,8 +16,6 @@ data.load_settings()
 state = data.State()
 state.load_session()
 
-positions = st.session_state.positions if 'positions' in st.session_state else pd.DataFrame()
-
 if state.trades.empty:
     st.caption('Nebyly importovány žádné obchody.')
     st.page_link("pages/1_import_trades.py", label="📥 Přejít na import obchodů")
@@ -48,13 +46,13 @@ if state.trades is not None and not state.trades.empty:
         st.markdown(f'Nebyly nalezeny žádné otevřené pozice - všechny obchody byly uzavřeny.')
     else:
         table_descriptor = ux.transaction_table_descriptor_native()
-        column_order = ('Symbol', 'Accumulated Quantity', 'Current Price', 'Date/Time')
+        column_order = ('Ticker', 'Accumulated Quantity', 'Current Price', 'Date/Time')
         column_config = table_descriptor['column_config']
         column_config['Date/Time'] = st.column_config.DateColumn("Poslední transakce", help="Datum poslední transakce s tímto instrumentem")
         trades_display = st.dataframe(open_positions, hide_index=True, column_order=column_order, column_config=column_config)
 
     # Display any mismatches in open positions if detected
-    mismatches, _ = position.check_open_position_mismatches(shown_trades, positions, max_date)
+    mismatches, _ = position.check_open_position_mismatches(shown_trades, state.positions, max_date)
     renames = state.symbols[(state.symbols['Date'] <= max_date) & (state.symbols['Date'] >= min_date)]
     if not renames.empty:
         st.warning('Nalezeny možné přejmenování instrumentů. Pokud se nejedná o správné párování, chybí obchody na jednom z těchto symbolů a je třeba je doplnit.')
@@ -69,7 +67,7 @@ if state.trades is not None and not state.trades.empty:
     if not mismatches.empty:
         st.error('Nalezeny nesrovnalosti v otevřených pozicích. Bude třeba doplnit chybějící obchody.')
         table_descriptor = ux.transaction_table_descriptor_native()
-        column_order = ('Symbol', 'Accumulated Quantity', 'Quantity', 'Date')
+        column_order = ('Ticker', 'Accumulated Quantity', 'Quantity', 'Date')
         table_descriptor['column_config']['Accumulated Quantity'] = st.column_config.NumberColumn("Počet dle transakcí", help="Spočítaná pozice ze všech nahraných transakcí", format="%f")
         table_descriptor['column_config']['Quantity'] = st.column_config.NumberColumn("Počet dle brokera", help="Pozice reportovaná brokerem v nahraném souboru", format="%f")
         table_descriptor['column_config']['Date'] = st.column_config.DateColumn("Poslední změna", help="Datum ke kterému broker spočítal pozice či byl proveden poslední obchod")
