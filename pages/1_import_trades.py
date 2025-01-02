@@ -110,10 +110,13 @@ def main():
             # Create a map of symbols that were renamed
             symbols = pd.DataFrame(trades['Symbol'].unique(), columns=['Symbol'])
             symbols['Ticker'] = symbols['Symbol']
+            trades = compute_accumulated_positions(trades, symbols)
             mismatches, guesses = position.check_open_position_mismatches(trades, positions)
             for index, row in guesses.iterrows():
                 symbols.loc[symbols['Symbol'] == row['From'], 'Ticker'] = row['To'] # Add rename time, use this in 5_positions instead of guesses
-            trades = compute_accumulated_positions(trades, symbols)
+            if len(guesses) > 0:
+                trades = compute_accumulated_positions(trades, symbols)
+            
             
         st.session_state.trades = trades
         st.session_state.actions = actions

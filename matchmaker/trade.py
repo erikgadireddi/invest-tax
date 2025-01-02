@@ -85,11 +85,12 @@ def _populate_extra_trade_columns(trades):
 # Compute accumulated positions for each symbol by simulating all trades
 @st.cache_data()
 def compute_accumulated_positions(trades, symbols):
-    trades = trades.merge(symbols, on='Symbol', how='left')
-    trades = trades.sort_values(by=['Date/Time'])
+    trades.drop(columns=['Ticker'], errors='ignore', inplace=True)
+    trades = trades.reset_index().merge(symbols, on='Symbol', how='left').set_index('Hash')
+    trades.sort_values(by=['Date/Time'], inplace=True)
     trades['Accumulated Quantity'] = trades.groupby('Ticker')['Quantity'].cumsum()
     return trades
-
+    
 # Adjust quantities and trade prices for splits
 @st.cache_data()
 def adjust_for_splits(trades, split_actions):
