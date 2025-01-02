@@ -56,7 +56,7 @@ def check_open_position_mismatches(trades, positions, max_date=pd.Timestamp.now(
             if (not pd.isna(to_row['First Activity']) and not pd.isna(from_row['First Activity']) and from_row['Last Activity'] > to_row['First Activity']):
                 continue
             action = 'Rename'
-            row = pd.DataFrame([{'From': from_row['Symbol'], 'To': to_row['Symbol'], 'Action': action, 'Date': from_row['Snapshot Date'], 'Year': from_row['Snapshot Date'].year}])
+            row = pd.DataFrame([{'From': from_row['Symbol'], 'To': to_row['Symbol'], 'Action': action, 'Date': from_row['Snapshot Date'], 'Year': int(from_row['Snapshot Date'].year)}])
             guesses = pd.concat([guesses, row])
 
     if not guesses.empty:

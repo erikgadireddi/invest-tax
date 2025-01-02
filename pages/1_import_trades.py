@@ -47,22 +47,16 @@ def main():
     # Parse the arguments
     args = parser.parse_args()
 
-    trades = st.session_state.trades if 'trades' in st.session_state else pd.DataFrame()
-    actions = st.session_state.actions if 'actions' in st.session_state else pd.DataFrame()
-    positions = st.session_state.positions if 'positions' in st.session_state else pd.DataFrame()
-    sell_buy_pairs = None
-    process_years = None
-    preserve_years = None
+    state = data.State()
+    state.load_session()
 
-    def change_uploaded_files(trades, previous_uploads):
+    def change_uploaded_files(previous_uploads):
         if len(previous_uploads) > 0:
-            trades.drop(trades.index, inplace=True)
-            actions.drop(actions.index, inplace=True)
-            positions.drop(positions.index, inplace=True)
+            state.reset()
         
     # Show file upload widget
     uploaded_files = st.file_uploader("Přetáhněte libovolné množství exportů (IBKR i Taxlite)", accept_multiple_files=True, type=['csv'], 
-                                      on_change=lambda: change_uploaded_files(trades, uploaded_files), key='file_uploader', help='Upload IBKR Activity Statements or CSV files with trades.')
+                                      on_change=lambda: change_uploaded_files(uploaded_files), key='file_uploader', help='Upload IBKR Activity Statements or CSV files with trades.')
     # Save newly uploaded files to session
     # Load list of filenames from session state
     st.session_state.uploaded_files = [f.name for f in uploaded_files]
@@ -84,7 +78,7 @@ def main():
                     ''')
         st.caption('Kód aplikace je open-source a můžete si tato tvrzení kdykoliv ověřit kliknutím na odkaz na GitHub v záhlaví aplikace. Kdykoliv si také můžete stáhnout celý kód a spustit si Taxlite na svém počítači.\n')
     import_state = st.caption('')
-    trades_count = len(trades)
+    trades_count = len(state.trades)
     loaded_count = 0
     # On upload, run import trades
     if uploaded_files:
@@ -92,42 +86,39 @@ def main():
             import_state.write('Importuji transakce...')
             imported_trades, imported_actions, imported_positions = import_trade_file(uploaded_file)
             if len(imported_actions) > 0:
-                actions = pd.concat([imported_actions, actions])
+                state.actions = pd.concat([imported_actions, state.actions])
             # Merge open positions and drop duplicates
-            positions = pd.concat([imported_positions, positions])
-            positions.drop_duplicates(subset=['Symbol', 'Date'], inplace=True)
+            state.positions = pd.concat([imported_positions, state.positions])
+            state.positions.drop_duplicates(subset=['Symbol', 'Date'], inplace=True)
             loaded_count += len(imported_trades)
             import_state.write(f'Slučuji :blue[{len(imported_trades)}] obchodů...')
-            trades = merge_trades(trades, imported_trades)
-            import_message = f'Importováno :green[{len(trades) - trades_count}] obchodů.'
+            state.trades = merge_trades(state.trades, imported_trades)
+            import_message = f'Importováno :green[{len(state.trades) - trades_count}] obchodů.'
             import_state.write(import_message)
 
-        import_state.write(f'Nalezeno :blue[{loaded_count}] obchodů, z nichž :green[{len(trades) - trades_count}] je nových.')
-        actions.drop_duplicates(inplace=True)
-        
-        if len(trades) > 0:
-            trades = adjust_for_splits(trades, actions)
-            # Create a map of symbols that were renamed
-            symbols = pd.DataFrame(trades['Symbol'].unique(), columns=['Symbol'])
-            symbols['Ticker'] = symbols['Symbol']
-            trades = compute_accumulated_positions(trades, symbols)
-            mismatches, guesses = position.check_open_position_mismatches(trades, positions)
-            for index, row in guesses.iterrows():
-                symbols.loc[symbols['Symbol'] == row['From'], 'Ticker'] = row['To'] # Add rename time, use this in 5_positions instead of guesses
-            if len(guesses) > 0:
-                trades = compute_accumulated_positions(trades, symbols)
-            
-            
-        st.session_state.trades = trades
-        st.session_state.actions = actions
-        st.session_state.positions = positions
+        import_state.write(f'Nalezeno :blue[{loaded_count}] obchodů, z nichž :green[{len(state.trades) - trades_count}] je nových.')
+        state.actions.drop_duplicates(inplace=True)
 
-    if (len(trades) == 0):
+        if len(state.trades) > 0:
+            state.trades = adjust_for_splits(state.trades, state.actions)
+            # Create a map of symbols that were renamed
+            state.symbols = pd.DataFrame(state.trades['Symbol'].unique(), columns=['Symbol'])
+            state.symbols['Ticker'] = state.symbols['Symbol']
+            state.trades = compute_accumulated_positions(state.trades, state.symbols)
+            mismatches, guesses = position.check_open_position_mismatches(state.trades, state.positions)
+            for index, row in guesses.iterrows():
+                state.symbols.loc[state.symbols['Symbol'] == row['From'], ['Ticker', 'Date']] = [row['To'], row['Date']] # Use this in 5_positions instead of guesses
+            if len(guesses) > 0:
+                state.trades = compute_accumulated_positions(state.trades, state.symbols)
+            
+        state.save_session()
+
+    if (len(state.trades) == 0):
         return
     
-    trades.sort_values(by=['Symbol', 'Date/Time'], inplace=True)
-    st.caption(f':blue[{len(trades)}] nalezených obchodů.')
-    st.dataframe(data=trades, hide_index=True, width=1100, height=500, column_order=('Symbol', 'Date/Time', 'Action', 'Quantity', 'Currency', 'T. Price', 'Proceeds', 'Comm/Fee', 'Realized P/L', 'Accumulated Quantity', 'Split Ratio'),
+    state.trades.sort_values(by=['Symbol', 'Date/Time'], inplace=True)
+    st.caption(f':blue[{len(state.trades)}] nalezených obchodů.')
+    st.dataframe(data=state.trades, hide_index=True, width=1100, height=500, column_order=('Symbol', 'Date/Time', 'Action', 'Quantity', 'Currency', 'T. Price', 'Proceeds', 'Comm/Fee', 'Realized P/L', 'Accumulated Quantity', 'Split Ratio'),
                     column_config={
                         'Date/Time': st.column_config.DatetimeColumn("Datum", help="Čas obchodu"),
                         'Action': st.column_config.TextColumn("Akce", help="Typ obchodu: Buy, Sell, Dividend, Split, Transfer"),
@@ -141,8 +132,8 @@ def main():
                         'Split Ratio': st.column_config.NumberColumn("Split", help="Poměr akcií po splitu", format="%f"),})
 
     # Show imported splits
-    if len(actions) > 0:
-        splits = actions[actions['Action'] == 'Split'].copy()
+    if len(state.actions) > 0:
+        splits = state.actions[state.actions['Action'] == 'Split'].copy()
         splits['Reverse Ratio'] = 1 / splits['Ratio']
         if len(splits) > 0:
             with st.expander(f'Splity, kterým rozumíme (:blue[{len(splits)}])'):
@@ -151,7 +142,7 @@ def main():
                             column_config={
                                 "Date/Time": st.column_config.DatetimeColumn("Datum", help="Čas splitu"),
                                 'Reverse Ratio': st.column_config.NumberColumn("Poměr", help="Počet akcií, na které byla jedna akcie rozdělena", format="%f")})
-        spinoffs = actions[(actions['Action'] == 'Spinoff') | (actions['Action'] == 'Acquisition')].copy()
+        spinoffs = state.actions[(state.actions['Action'] == 'Spinoff') | (state.actions['Action'] == 'Acquisition')].copy()
         if len(spinoffs) > 0:
             with st.expander(f'Vytvoření nových akcií (spinoffy), kterým rozumíme (:blue[{len(spinoffs)}])'):
                 st.dataframe(data=spinoffs, hide_index=True, 
@@ -162,7 +153,7 @@ def main():
                                 'Ratio': st.column_config.NumberColumn("Poměr", help="Poměr nových akcií za staré", format="%.3f"),
                                 'Description': st.column_config.NumberColumn("Popis", help="Textový popis spinoffu")})
         
-        unparsed = actions[actions['Action'] == 'Unknown']
+        unparsed = state.actions[state.actions['Action'] == 'Unknown']
         if len(unparsed) > 0:
             with st.expander(f'Korporátní akce, které neznáme (:blue[{len(unparsed)}])'):
                 st.dataframe(data=unparsed, hide_index=True, 
@@ -174,8 +165,8 @@ def main():
     col1, spacer, col2 = st.columns([0.3, 0.3, 0.2])
     # Serve merged trades as CSV    
     with col1:
-        if (len(trades) > 0):
-            trades_csv = snapshot.save_snapshot(trades, actions, positions).encode('utf-8')
+        if (len(state.trades) > 0):
+            trades_csv = snapshot.save_snapshot(state.trades, state.actions, state.positions).encode('utf-8')
             st.download_button('📩 Stáhnout vše v CSV', trades_csv, 'merged_trades.csv', 'text/csv', use_container_width=True, help='Stažením dostanete celý stav výpočtu pro další použití. Stačí příště přetáhnout do importu pro pokračování.')
     # Clear uploaded files
     with col2:
@@ -189,6 +180,10 @@ def main():
     return
 
     # Load data
+    sell_buy_pairs = None
+    process_years = None
+    preserve_years = None
+
     daily_rates = load_daily_rates(args.settings_dir)
     yearly_rates = load_yearly_rates(args.settings_dir)
 

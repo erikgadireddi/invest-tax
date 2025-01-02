@@ -13,22 +13,23 @@ menu()
 
 data.load_settings()
 
-trades = st.session_state.trades if 'trades' in st.session_state else pd.DataFrame()
-symbol = st.session_state.symbol if 'symbol' in st.session_state else None
+state = data.State()
+state.load_session()
+
 positions = st.session_state.positions if 'positions' in st.session_state else pd.DataFrame()
 
-if trades.empty:
+if state.trades.empty:
     st.caption('Nebyly importovány žádné obchody.')
     st.page_link("pages/1_import_trades.py", label="📥 Přejít na import obchodů")
     st.stop()
 
-st.session_state.update(year=ux.add_years_filter(trades))
+st.session_state.update(year=ux.add_years_filter(state.trades))
 
 daily_rates = currency.load_daily_rates(st.session_state['settings']['currency_rates_dir'])
 
-if trades is not None and not trades.empty:
+if state.trades is not None and not state.trades.empty:
     progress_text = st.caption('Probíhá načítání aktuálních cen instrumentů...')
-    shown_trades = trades.sort_values(by='Date/Time')
+    shown_trades = state.trades.sort_values(by='Date/Time')
     # Get a list of symbols that have a final accumulated quantity different from 0
     selected_year = st.session_state.get('year')
     if selected_year is None:
@@ -53,15 +54,15 @@ if trades is not None and not trades.empty:
         trades_display = st.dataframe(open_positions, hide_index=True, column_order=column_order, column_config=column_config)
 
     # Display any mismatches in open positions if detected
-    mismatches, guesses = position.check_open_position_mismatches(shown_trades, positions, max_date)
-    guesses = guesses[(guesses['Date'] <= max_date) & (guesses['Date'] >= min_date)]
-    if not guesses[guesses['Action'] == 'Rename'].empty:
+    mismatches, _ = position.check_open_position_mismatches(shown_trades, positions, max_date)
+    renames = state.symbols[(state.symbols['Date'] <= max_date) & (state.symbols['Date'] >= min_date)]
+    if not renames.empty:
         st.warning('Nalezeny možné přejmenování instrumentů. Pokud se nejedná o správné párování, chybí obchody na jednom z těchto symbolů a je třeba je doplnit.')
-        column_order = ('From', 'To', 'Year')
-        column_config = {'From': st.column_config.TextColumn("Původní", help="Původní symbol"), 
-                         'To': st.column_config.TextColumn("Nový", help="Nový symbol"),
+        column_order = ('Symbol', 'Ticker', 'Year')
+        column_config = {'Symbol': st.column_config.TextColumn("Původní", help="Původní symbol"), 
+                         'Ticker': st.column_config.TextColumn("Nový", help="Nový symbol"),
                          'Year': st.column_config.NumberColumn("Rok", help="Rok, ve kterém byla provedena změna", format="%d")}
-        st.dataframe(guesses[guesses['Action'] == 'Rename'], hide_index=True, column_order=column_order, column_config=column_config)
+        st.dataframe(renames, hide_index=True, column_order=column_order, column_config=column_config)
 
     mismatches['Quantity'] = mismatches['Quantity'].fillna(0)
     mismatches['Accumulated Quantity'] = mismatches['Accumulated Quantity'].fillna(0)

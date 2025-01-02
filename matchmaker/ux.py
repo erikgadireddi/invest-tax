@@ -10,7 +10,7 @@ def transaction_table_descriptor_czk():
                         'Currency': st.column_config.TextColumn("Měna", help="Měna v které bylo obchodováno"), 
                         'Quantity': st.column_config.NumberColumn("Počet", help="Počet kusů daného instrumentu", format="%f"), 
                         'Date/Time': st.column_config.DatetimeColumn("Čas transakce", help="Datum a čas transakce"), 
-                        'T. Price': st.column_config.NumberColumn("Cena", help="Cena za 1 kus daného instrumentu", format="%f"), 
+                        'T. Price': st.column_config.NumberColumn("Cena", help="Cena za 1 kus daného instrumentu", format="%.2f"), 
                         'Comm/Fee': st.column_config.NumberColumn("Poplatek",  help="Poplatek brokerovi za celou transakci. Při párování pozic bude rozpočítán.", format="%.1f"), 
                         'CZK Profit': st.column_config.NumberColumn("Zisk v CZK (přibližný)", help="Zisk je ve zdrojových datech obvykle počítán FIFO metodou a zde je přepočítán do CZK kurzem daného dne. "
                                                                     "Pro vykázání v daňovém přiznání nicméně musí být nákupní transakce přepočítána kurzem jejího vzniku.", format="%.1f"), 
@@ -30,7 +30,7 @@ def transaction_table_descriptor_native():
                         'Currency': st.column_config.TextColumn("Měna", help="Měna v které bylo obchodováno"), 
                         'Quantity': st.column_config.NumberColumn("Počet", help="Počet kusů daného instrumentu", format="%f"), 
                         'Date/Time': st.column_config.DatetimeColumn("Čas transakce", help="Datum a čas transakce"), 
-                        'T. Price': st.column_config.NumberColumn("Cena", help="Cena za 1 kus daného instrumentu", format="%f"), 
+                        'T. Price': st.column_config.NumberColumn("Cena", help="Cena za 1 kus daného instrumentu", format="%.2f"), 
                         'Comm/Fee': st.column_config.NumberColumn("Poplatek",  help="Poplatek brokerovi za celou transakci. Při párování pozic bude rozpočítán.", format="%.1f"), 
                         'Realized P/L': st.column_config.NumberColumn("Zisk", help="Zisk v původní měně je ve zdrojových datech obvykle počítán FIFO metodou.", format="%.1f"), 
                         'Accumulated Quantity': st.column_config.NumberColumn("Pozice", help="Otevřené pozice po této transakci. Negativní znamenají shorty. "
