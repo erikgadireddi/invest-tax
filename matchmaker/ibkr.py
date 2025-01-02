@@ -150,7 +150,7 @@ def import_activity_statement(file):
     # 2nd line: Statement,Data,Title,Activity Statement
     # 3rd line: Statement,Data,Period,"April 13, 2020 - April 12, 2021"
     while line := file.readline().decode('utf-8'):
-        if line.startswith('Statement,Data,Title,Activity Statement'):
+        if line.startswith('Statement,Data,Title,Activity '):
             break
     match_period = re.match('Statement,Data,Period,"(.+) - (.+)"', file.readline().decode('utf-8'))
     if not match_period:
