@@ -172,7 +172,9 @@ def import_activity_statement(file):
         raise Exception('No period in IBKR Activity Statement')
     lines = parse_csv_into_prefixed_lines(file)
 
-    account = dataframe_from_prefixed_lines(lines, 'Account Information')
+    account_info = dataframe_from_prefixed_lines(lines, 'Account Information')
+    account = account_info[account_info['Field Name'] == 'Account'].iloc[0]['Field Value']
+    account = re.match(r'U\d+', account).group(0)
     # Convert to from and to dates
     from_date = pd.to_datetime(match_period.group(1), format='%B %d, %Y')
     to_date = pd.to_datetime(match_period.group(2), format='%B %d, %Y')    
@@ -181,9 +183,12 @@ def import_activity_statement(file):
     open_positions = import_open_positions(lines, from_date, to_date)
     transfers = import_transfers(lines)
     transfers = pd.concat([transfers, generate_transfers_from_actions(actions)])
-    trades = pd.concat([trades, transfers])
+    # Account is there in cases of consolidated reports for multiple accounts
     if 'Account' in trades.columns:
+        trades = pd.concat([trades, transfers[(transfers['Account'] == account) | (transfers['Account'].isna())]])
         trades.drop(columns=['Account'], inplace=True)
+    else:
+        trades = pd.concat([trades, transfers])
     return trades, actions, open_positions
 
 def import_all_statements(directory, tickers_dir=None):

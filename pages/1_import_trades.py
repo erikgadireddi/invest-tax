@@ -102,7 +102,8 @@ def main():
         if len(state.trades) > 0:
             state.trades = adjust_for_splits(state.trades, state.actions)
             # Create a map of symbols that could be renamed (but we don't know for now)
-            state.symbols = pd.DataFrame(state.trades['Symbol'].unique(), columns=['Symbol'])
+            all_symbols = pd.concat([state.trades['Symbol'], state.positions['Symbol']]).unique()
+            state.symbols = pd.DataFrame(all_symbols, columns=['Symbol'])
             state.symbols['Ticker'] = state.symbols['Symbol']
             state.trades = compute_accumulated_positions(state.trades, state.symbols)
             state.positions.drop(columns=['Ticker'], errors='ignore', inplace=True)

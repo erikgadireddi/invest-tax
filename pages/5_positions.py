@@ -54,6 +54,7 @@ if state.trades is not None and not state.trades.empty:
     # Display any mismatches in open positions if detected
     mismatches, _ = position.check_open_position_mismatches(shown_trades, state.positions, max_date)
     renames = state.symbols[(state.symbols['Date'] <= max_date) & (state.symbols['Date'] >= min_date)]
+    renames['Year'] = renames['Date'].dt.year
     if not renames.empty:
         st.warning('Nalezeny možné přejmenování instrumentů. Pokud se nejedná o správné párování, chybí obchody na jednom z těchto symbolů a je třeba je doplnit.')
         column_order = ('Symbol', 'Ticker', 'Year')
