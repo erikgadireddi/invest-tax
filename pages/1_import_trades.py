@@ -105,6 +105,7 @@ def main():
             state.symbols = pd.DataFrame(state.trades['Symbol'].unique(), columns=['Symbol'])
             state.symbols['Ticker'] = state.symbols['Symbol']
             state.trades = compute_accumulated_positions(state.trades, state.symbols)
+            state.positions.drop(columns=['Ticker'], errors='ignore', inplace=True)
             state.positions = state.positions.merge(state.symbols[['Symbol', 'Ticker']], on='Symbol', how='left')
             mismatches, renames = position.check_open_position_mismatches(state.trades, state.positions)
             for index, row in renames.iterrows():

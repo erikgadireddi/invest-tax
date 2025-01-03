@@ -65,8 +65,6 @@ def process_after_import(trades, actions=None):
 # Add split data column to trades by consulting split actions
 def _add_split_data(trades, split_actions):
     split_actions = split_actions[split_actions['Action'] == 'Split']
-    if 'Split Ratio' not in trades.columns:
-        trades['Split Ratio'] = np.nan
     if not split_actions.empty:
         # Enhance trades with Split Ratio column by looking up same symbol in split_actions
         #  and summing all ratio columns that have a date sooner than the row in trades    
@@ -86,7 +84,7 @@ def _populate_extra_trade_columns(trades):
 @st.cache_data()
 def compute_accumulated_positions(trades, symbols):
     trades.drop(columns=['Ticker'], errors='ignore', inplace=True)
-    trades = trades.reset_index().merge(symbols[['Symbol', 'Ticker']], on='Symbol', how='left').set_index('Hash')
+    trades = trades.reset_index().rename(columns={'index': 'Hash'}).merge(symbols[['Symbol', 'Ticker']], on='Symbol', how='left').set_index('Hash')
     trades.sort_values(by=['Date/Time'], inplace=True)
     trades['Accumulated Quantity'] = trades.groupby('Ticker')['Quantity'].cumsum()
     return trades
@@ -94,6 +92,8 @@ def compute_accumulated_positions(trades, symbols):
 # Adjust quantities and trade prices for splits
 @st.cache_data()
 def adjust_for_splits(trades, split_actions):
+    if 'Split Ratio' not in trades.columns:
+        trades['Split Ratio'] = np.nan
     if split_actions is not None and not split_actions.empty:
         _add_split_data(trades, split_actions)
         trades['Quantity'] = trades['Orig. Quantity'] * trades['Split Ratio']
