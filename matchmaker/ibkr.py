@@ -8,16 +8,23 @@ from matchmaker.trade import normalize_trades
 import matchmaker.actions as actions
 import matchmaker.position as position
 
-def dataframe_from_lines_with_prefix(file, prefix):
-    file.seek(0)
-    file = [line.decode('utf-8') for line in file]
-    # Filter file lines to those beginning with 'Trades'
-    file_lines = [line for line in file if line.startswith(prefix)]
-    if len(file_lines) == 0:
+def dataframe_from_prefixed_lines(line_dict, prefix):
+    if prefix not in line_dict:
         return pd.DataFrame()
-    file_data = StringIO('\n'.join(file_lines))
+    file_data = StringIO(''.join(line_dict[prefix]))
     return pd.read_csv(file_data)
 
+# Parses the CSV into a dictionary of lines with the same prefix
+def parse_csv_into_prefixed_lines(file):
+    file.seek(0)
+    file = [line.decode('utf-8') for line in file]
+    prefix_dict = {}
+    for line in file:
+        key = line.split(',', 1)[0]
+        if key not in prefix_dict:
+            prefix_dict[key] = []
+        prefix_dict[key].append(line)
+    return prefix_dict
 
 # Import trades from IBKR format
 # First line is the headers: Trades,Header,DataDiscriminator,Asset Category,Currency,Symbol,Date/Time,Quantity,T. Price,C. Price,Proceeds,Comm/Fee,Basis,Realized P/L,MTM P/L,Code
@@ -37,7 +44,7 @@ def dataframe_from_lines_with_prefix(file, prefix):
 # Data begins on the second line
 # Example line: Trades,Data,Order,Stocks,CZK,CEZ,"2023-08-03, 08:44:03",250,954,960,-238500,-763.2,239263.2,0,1500,O
 def import_trades(file):
-    df = dataframe_from_lines_with_prefix(file, 'Trades')
+    df = dataframe_from_prefixed_lines(file, 'Trades')
     df = df[(df['Trades'] == 'Trades') & (df['Header'] == 'Data') & (df['DataDiscriminator'] == 'Order') & (df['Asset Category'] == 'Stocks')]
     # Filter DataFrame by Asset Category == 'Stocks' and DataDiscriminator == 'Data' (rest is partial sums and totals)
     df = df[(df['Asset Category'] == 'Stocks') & (df['DataDiscriminator'] == 'Order')]
@@ -46,7 +53,7 @@ def import_trades(file):
     return normalize_trades(df)
 
 def import_corporate_actions(file):
-    df = dataframe_from_lines_with_prefix(file, 'Corporate Actions,')
+    df = dataframe_from_prefixed_lines(file, 'Corporate Actions')
     if df.empty:
         df = pd.DataFrame(columns=['Corporate Actions', 'Header', 'Asset Category', 'Currency', 'Report Date', 'Date/Time', 'Description', 'Quantity', 'Proceeds', 'Value', 'Realized P/L', 'Action', 'Symbol', 'Ratio', 'Code'])
     df = df[df['Asset Category'] == 'Stocks']
@@ -100,7 +107,7 @@ def import_corporate_actions(file):
 
 def import_open_positions(file, date_from, date_to):
     # Old format that doesn't reflect symbol changes
-    df = dataframe_from_lines_with_prefix(file, 'Mark-to-Market Performance Summary,')
+    df = dataframe_from_prefixed_lines(file, 'Mark-to-Market Performance Summary')
     if df.empty:
         # Mark-to-Market Performance Summary,Header,Asset Category,Symbol,Prior Quantity,Current Quantity,Prior Price,
         # Current Price,Mark-to-Market P/L Position,Mark-to-Market P/L Transaction,Mark-to-Market P/L Commissions,Mark-to-Market P/L Other,Mark-to-Market P/L Total,Code
@@ -113,7 +120,7 @@ def import_open_positions(file, date_from, date_to):
     return position.convert_position_history_columns(df)
 
 def import_transfers(file):
-    df = dataframe_from_lines_with_prefix(file, 'Transfers,')
+    df = dataframe_from_prefixed_lines(file, 'Transfers')
     if df.empty:
         # Transfers,Header,Asset Category,,Currency,Symbol,Date,Type,Direction,Xfer Company,Xfer Account,Qty,Xfer Price,Market Value,Realized P/L,Cash Amount,Code
         df = pd.DataFrame(columns=['Transfers', 'Header', 'Asset Category', 'Currency', 'Symbol', 'Date', 'Type', 'Direction', 'Xfer Company', 'Xfer Account', 'Qty', 'Xfer Price', 'Market Value', 'Realized P/L', 'Cash Amount', 'Code'])
@@ -163,15 +170,20 @@ def import_activity_statement(file):
     match_period = re.match('Statement,Data,Period,"(.+) - (.+)"', file.readline().decode('utf-8'))
     if not match_period:
         raise Exception('No period in IBKR Activity Statement')
+    lines = parse_csv_into_prefixed_lines(file)
+
+    account = dataframe_from_prefixed_lines(lines, 'Account Information')
     # Convert to from and to dates
     from_date = pd.to_datetime(match_period.group(1), format='%B %d, %Y')
     to_date = pd.to_datetime(match_period.group(2), format='%B %d, %Y')    
-    trades = import_trades(file)
-    actions = import_corporate_actions(file)
-    open_positions = import_open_positions(file, from_date, to_date)
-    transfers = import_transfers(file)
+    trades = import_trades(lines)
+    actions = import_corporate_actions(lines)
+    open_positions = import_open_positions(lines, from_date, to_date)
+    transfers = import_transfers(lines)
     transfers = pd.concat([transfers, generate_transfers_from_actions(actions)])
     trades = pd.concat([trades, transfers])
+    if 'Account' in trades.columns:
+        trades.drop(columns=['Account'], inplace=True)
     return trades, actions, open_positions
 
 def import_all_statements(directory, tickers_dir=None):
