@@ -12,7 +12,6 @@ menu()
 data.load_settings()
 
 trades = st.session_state.trades if 'trades' in st.session_state else pd.DataFrame()
-year = st.session_state.year if 'year' in st.session_state else None
 positions = st.session_state.positions if 'positions' in st.session_state else pd.DataFrame()
 
 if trades.empty:
@@ -21,12 +20,13 @@ if trades.empty:
 else:
     st.caption(str(len(trades)) + ' transakcí k dispozici.')
 
-daily_rates = currency.load_daily_rates(st.session_state['settings']['currency_rates_dir'])
-yearly_rates = currency.load_yearly_rates(st.session_state['settings']['currency_rates_dir'])
 
 if trades is not None and not trades.empty:    
+    daily_rates = currency.load_daily_rates(st.session_state['settings']['currency_rates_dir'])
+    yearly_rates = currency.load_yearly_rates(st.session_state['settings']['currency_rates_dir'])
     trades = currency.add_czk_conversion_to_trades(trades, daily_rates, use_yearly_rates=False)
-    st.session_state.update(year=ux.add_years_filter(trades))
+    year=ux.add_years_filter(trades)
+    st.session_state.update(year=year)
     st.caption(f'Vysvětlivky k jednotlivým sloupcům jsou k dispozici na najetí myší.')
     shown_trades = trades[trades['Year'] == year] if year is not None else trades
     table_descriptor = ux.transaction_table_descriptor_czk()
