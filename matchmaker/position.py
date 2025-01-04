@@ -22,19 +22,21 @@ def compute_open_positions(trades, time=pd.Timestamp.now()):
     return positions[positions['Accumulated Quantity'] != 0]
 
 # Compute open positions per symbol at a given time
-def compute_open_positions_per_account(trades, time=pd.Timestamp.now()):
+def compute_open_positions_per_account(trades, time=pd.Timestamp.now(), account=None):
     trades = trades[trades['Date/Time'] <= time]
+    if account is not None:
+        trades = trades[trades['Account'] == account]
     positions = trades.groupby('Ticker')[['Account', 'Account Accumulated Quantity', 'Date/Time', 'Split Ratio']].last().reset_index()
     return positions[positions['Account Accumulated Quantity'] != 0]
 
 
 def check_open_position_mismatches(trades, positions, max_date=pd.Timestamp.now()):
     # Walk through every snapshot of open positions and check if it matches what we can compute from our trades
-    time_points = positions[(positions['Quantity'] != 0) & (positions['Date'] <= max_date)].groupby('Date')
+    time_points = positions[(positions['Quantity'] != 0) & (positions['Date'] <= max_date)].groupby(['Date', 'Account'])
     mismatches = pd.DataFrame(columns=['Ticker', 'Date'])
-    for time, snapshot in time_points:
-        open_positions = compute_open_positions_per_account(trades, time)
+    for (time, account), snapshot in time_points:
         # Join and check for quantity mismatches or missing symbols
+        open_positions = compute_open_positions_per_account(trades, time, account)
         merged = snapshot.merge(open_positions, on=['Ticker', 'Account'], suffixes=('_snapshot', '_computed'), how='outer')
         merged['Quantity Mismatch'] = merged['Account Accumulated Quantity'].fillna(0) - merged['Quantity'].fillna(0) * merged['Split Ratio'].fillna(1)
         merged['Snapshot Date'] = time
