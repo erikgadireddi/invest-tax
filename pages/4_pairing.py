@@ -18,7 +18,6 @@ def page():
     trades = st.session_state.trades if 'trades' in st.session_state else pd.DataFrame()
     # Trades we previously tried to pair. Will be used to check when recomputation is needed.
     computed_trades = st.session_state.computed_trades if 'computed_trades' in st.session_state else pd.DataFrame()
-    show_year = st.session_state.show_year if 'show_year' in st.session_state else None
     match_config = st.session_state.match_config if 'match_config' in st.session_state else {}
     paired_trades = st.session_state.paired_trades if 'paired_trades' in st.session_state else pd.DataFrame()
     buys = st.session_state.buys if 'buys' in st.session_state else pd.DataFrame()
@@ -29,18 +28,21 @@ def page():
         st.page_link("pages/1_import_trades.py", label="📥 Přejít na import obchodů")
         return
         
+    st.caption(str(len(trades)) + ' obchodů k dispozici.')
     # Matching configuration is a dictionary[year] of:
     #  strategy: FIFO, LIFO, AverageCost, MaxLoss, MaxProfit
     #  use_yearly_rates: bool
     trades = trades[(trades['Action'] == 'Open') | (trades['Action'] == 'Close')] # Filter out transfers and other transactions
     strategies = ['FIFO', 'LIFO', 'AverageCost', 'MaxLoss', 'MaxProfit']
+    st.session_state.update(year=ux.add_years_filter(trades, False, 'Rok pro párování'))
     years = sorted(trades['Year'].unique())
+    show_year = st.session_state.get('year')
+    if show_year is None:
+        show_year = years[-1]
     for year in years:
         if year not in match_config:
             match_config[year] = {'strategy': 'FIFO', 'yearly_rates': True}
     
-    st.caption(str(len(trades)) + ' obchodů k dispozici.')
-    show_year = int(pills('Rok', [str(year) for year in years], index=years.index(show_year) if show_year is not None else 0))
     this_config = match_config[show_year]
     this_config['strategy'] = pills('Strategie párování', strategies, index=strategies.index(this_config['strategy']), key=f'strategy_{show_year}')
     this_config['yearly_rates'] = pills(f'Použíté kurzy', ['roční', 'denní'], index=0 if this_config['yearly_rates'] else 1, key=f'yearly_rates_{show_year}') == 'roční'

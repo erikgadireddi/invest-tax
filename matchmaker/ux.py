@@ -75,8 +75,9 @@ def add_trades_editor(trades, selected_trade=None, callback=None):
             st.form_submit_button('Přidat transakci', on_click=lambda: callback(create_dataframe(trades, st.session_state.get('new_symbol'), st.session_state.get('new_date'), 
                                                                                                  st.session_state.get('new_quantity'), st.session_state.get('new_price'))))
             
-def add_years_filter(trades):
+def add_years_filter(trades, show_all=True, title='Vyberte si rok'):
     years = sorted(trades['Year'].unique())
-    year_str = pills('Vyberte si rok', ['All'] + [str(year) for year in years])
+    extra = ['All'] if show_all else []
+    year_str = pills(title, extra + [str(year) for year in years])
     year = int(year_str) if year_str != 'All' else None
     return year

@@ -15,7 +15,7 @@ def convert_trade_columns(df):
     df['T. Price'] = pd.to_numeric(df['T. Price'], errors='coerce')
     df['C. Price'] = pd.to_numeric(df['C. Price'], errors='coerce')
     if 'Code' in df.columns:
-       df['Action'] = df['Code'].apply(lambda x: 'Open' if 'O' in x else 'Close' if 'C' in x else 'Unknown')
+       df['Action'] = df['Code'].apply(lambda x: 'Open' if ('O' in x or 'Ca' in x) else 'Close' if 'C' in x else 'Unknown')
     # If action is not Transfer, then Type is Long if we're opening a position, Short if closing
     def get_type(row):
         if row['Quantity'] == 0:
