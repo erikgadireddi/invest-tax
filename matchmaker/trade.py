@@ -87,6 +87,8 @@ def compute_accumulated_positions(trades, symbols):
     trades = trades.reset_index().rename(columns={'index': 'Hash'}).merge(symbols[['Symbol', 'Ticker']], on='Symbol', how='left').set_index('Hash')
     trades.sort_values(by=['Date/Time'], inplace=True)
     trades['Accumulated Quantity'] = trades.groupby('Ticker')['Quantity'].cumsum()
+    # Now also compute accumulated quantity per account
+    trades['Account Accumulated Quantity'] = trades.groupby(['Account', 'Ticker'])['Quantity'].cumsum()
     return trades
     
 # Adjust quantities and trade prices for splits
