@@ -94,12 +94,12 @@ def import_corporate_actions(file):
         match = re.search(r'^(\w+)\(\w+\) Merged\(Acquisition\) FOR (\w+) (\d+\.\d+) PER SHARE', text, re.IGNORECASE)
         if match:
             ratio = float(match.group(3))
-            return 'Acquisition', match.group(1), ratio, match.group(2)
+            return 'Acquisition', match.group(1), ratio, None
         # Converted to other stock: MRO(US5658491064) Merged(Acquisition) WITH US20825C1045 255 for 1000 (COP, CONOCOPHILLIPS, US20825C1045)
         match = re.search(r'^(\w+)\(\w+\) Merged\(Acquisition\) WITH (\w+) (\d+) for (\d+) \((\w+),', text, re.IGNORECASE)
         if match:
             ratio = float(match.group(4)) / float(match.group(3))
-            return 'Acquisition', match.group(1), ratio, match.group(5)
+            return 'Acquisition', match.group(5), ratio, match.group(1)
         return None, None, None, None
     
     df['Quantity'] = pd.to_numeric(df['Quantity'].astype(str).str.replace(',', ''), errors='coerce')
