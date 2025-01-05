@@ -36,6 +36,7 @@ def check_open_position_mismatches(trades, positions, max_date=pd.Timestamp.now(
     mismatches = pd.DataFrame(columns=['Ticker', 'Date'])
     for (time, account), snapshot in time_points:
         # Join and check for quantity mismatches or missing symbols
+        time = pd.Timestamp(time).replace(hour=23, minute=59, second=59) # Position snapshots are taken at the end of the day
         open_positions = compute_open_positions_per_account(trades, time, account)
         merged = snapshot.merge(open_positions, on=['Ticker', 'Account'], suffixes=('_snapshot', '_computed'), how='outer')
         merged['Quantity Mismatch'] = merged['Account Accumulated Quantity'].fillna(0) - merged['Quantity'].fillna(0) * merged['Split Ratio'].fillna(1)
