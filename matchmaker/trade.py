@@ -7,13 +7,13 @@ import matchmaker.data as data
 def convert_trade_columns(df):
     df['Date/Time'] = pd.to_datetime(df['Date/Time'])
     df['Quantity'] = pd.to_numeric(df['Quantity'], errors='coerce')
-    df['Proceeds'] = pd.to_numeric(df['Proceeds'], errors='coerce')
-    df['Comm/Fee'] = pd.to_numeric(df['Comm/Fee'], errors='coerce')
-    df['Basis'] = pd.to_numeric(df['Basis'], errors='coerce')
-    df['Realized P/L'] = pd.to_numeric(df['Realized P/L'], errors='coerce')
-    df['MTM P/L'] = pd.to_numeric(df['MTM P/L'], errors='coerce')
-    df['T. Price'] = pd.to_numeric(df['T. Price'], errors='coerce')
-    df['C. Price'] = pd.to_numeric(df['C. Price'], errors='coerce')
+    df['Proceeds'] = pd.to_numeric(df['Proceeds'], errors='coerce').astype(np.float64)
+    df['Comm/Fee'] = pd.to_numeric(df['Comm/Fee'], errors='coerce').astype(np.float64)
+    df['Basis'] = pd.to_numeric(df['Basis'], errors='coerce').astype(np.float64)
+    df['Realized P/L'] = pd.to_numeric(df['Realized P/L'], errors='coerce').astype(np.float64)
+    df['MTM P/L'] = pd.to_numeric(df['MTM P/L'], errors='coerce').astype(np.float64)
+    df['T. Price'] = pd.to_numeric(df['T. Price'], errors='coerce').astype(np.float64)
+    df['C. Price'] = pd.to_numeric(df['C. Price'], errors='coerce').astype(np.float64)
     if 'Code' in df.columns:
        df['Action'] = df['Code'].apply(lambda x: 'Open' if ('O' in x or 'Ca' in x) else 'Close' if 'C' in x else 'Unknown')
     # If action is not Transfer, then Type is Long if we're opening a position, Short if closing
