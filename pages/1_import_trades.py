@@ -108,6 +108,8 @@ def main():
             state.trades = compute_accumulated_positions(state.trades, state.symbols)
             state.positions.drop(columns=['Ticker'], errors='ignore', inplace=True)
             state.positions = state.positions.merge(state.symbols[['Symbol', 'Ticker']], on='Symbol', how='left')
+            state.positions['Date/Time'] = pd.to_datetime(state.positions['Date']) + pd.Timedelta(seconds=86399) # Add 23:59:59 to the date
+            state.positions = add_split_data(state.positions, state.actions)
             mismatches, renames = position.check_open_position_mismatches(state.trades, state.positions)
             for index, row in renames.iterrows():
                 state.symbols.loc[state.symbols['Symbol'] == row['From'], ['Ticker', 'Date']] = [row['To'], row['Date']] # Use this in 5_positions instead of guesses
@@ -179,9 +181,8 @@ def main():
     with col2:
         def clear_uploads():
             st.session_state.pop('file_uploader', None)
-            st.session_state.pop('trades', None)
-            st.session_state.pop('actions', None)
-            st.session_state.pop('positions', None)
+            state.reset()
+            state.save_session()
         st.button('🧹 Smazat obchody', on_click=lambda: clear_uploads(), use_container_width=True)
     
     return

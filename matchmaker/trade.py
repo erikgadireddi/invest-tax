@@ -63,16 +63,17 @@ def process_after_import(trades, actions=None):
     return trades
 
 # Add split data column to trades by consulting split actions
-def _add_split_data(trades, split_actions):
+def add_split_data(target, split_actions):
     split_actions = split_actions[split_actions['Action'] == 'Split']
     if not split_actions.empty:
         # Enhance trades with Split Ratio column by looking up same symbol in split_actions
         #  and summing all ratio columns that have a date sooner than the row in trades    
         split_actions = split_actions.sort_values(by='Date/Time', ascending=True)
         split_actions['Cumulative Ratio'] = split_actions.groupby('Symbol')['Ratio'].cumprod()
-        trades['Split Ratio'] = 1 / trades.apply(lambda row: split_actions[(split_actions['Symbol'] == row['Symbol']) & (split_actions['Date/Time'] > row['Date/Time'])]['Cumulative Ratio'].min(), axis=1)
+        target['Split Ratio'] = 1 / target.apply(lambda row: split_actions[(split_actions['Symbol'] == row['Symbol']) & (split_actions['Date/Time'] > row['Date/Time'])]['Cumulative Ratio'].min(), axis=1)
         split_actions.drop(columns=['Cumulative Ratio'], inplace=True)
-    trades.fillna({'Split Ratio': 1}, inplace=True)
+    target.fillna({'Split Ratio': 1}, inplace=True)
+    return target
 
 # Add or refresh dynamically computed columns
 @st.cache_data()
@@ -97,7 +98,7 @@ def adjust_for_splits(trades, split_actions):
     if 'Split Ratio' not in trades.columns:
         trades['Split Ratio'] = np.nan
     if split_actions is not None and not split_actions.empty:
-        _add_split_data(trades, split_actions)
+        add_split_data(trades, split_actions)
         trades['Quantity'] = trades['Orig. Quantity'] * trades['Split Ratio']
         trades['T. Price'] = trades['Orig. T. Price'] / trades['Split Ratio']
     return trades
