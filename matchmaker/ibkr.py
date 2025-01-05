@@ -55,52 +55,57 @@ def import_trades(file):
 def import_corporate_actions(file):
     df = dataframe_from_prefixed_lines(file, 'Corporate Actions')
     if df.empty:
-        df = pd.DataFrame(columns=['Corporate Actions', 'Header', 'Asset Category', 'Currency', 'Report Date', 'Date/Time', 'Description', 'Quantity', 'Proceeds', 'Value', 'Realized P/L', 'Action', 'Symbol', 'Ratio', 'Code'])
+        df = pd.DataFrame(columns=['Corporate Actions', 'Header', 'Asset Category', 'Currency', 'Report Date', 'Date/Time', 'Description', 'Quantity', 'Proceeds', 'Value', 'Realized P/L', 'Action', 'Symbol', 'Ratio', 'Code', 'Target'])
     df = df[df['Asset Category'] == 'Stocks']
     df.drop(columns=['Corporate Actions', 'Header', 'Asset Category'], inplace=True)
     
     def parse_action_text(text):
-        action, symbol, ratio = parse_split_text(text)
+        action, symbol, ratio, target = parse_split_text(text)
         if not action:
-            action, symbol, ratio = parse_spinoff_text(text)
+            action, symbol, ratio, target = parse_spinoff_text(text)
         if not action:
-            action, symbol, ratio = parse_acquisition_text(text)
+            action, symbol, ratio, target = parse_acquisition_text(text)
         if not action:
             match = re.search(r'^(\w+)\(\w+\)', text)
             if match:
-                action, symbol, ratio = 'Unknown', match.group(1), 0.0
+                action, symbol, ratio, target = 'Unknown', match.group(1), 0.0, None
         if not action and 'Dividend' in text:
-            action, symbol, ratio = 'Dividend', None, None
+            action, symbol, ratio, target = 'Dividend', None, None, None
         if not action:
-            action, symbol, ratio = 'Unknown', None, None
-        return action, symbol, ratio
+            action, symbol, ratio, target = 'Unknown', None, None, None
+        return action, symbol, ratio, target
     
     def parse_split_text(text):
         match = re.search(r'([\w\.]+)\(\w+\) Split (\d+) for (\d+)', text, re.IGNORECASE)
         if match:
             ratio = float(match.group(3)) / float(match.group(2))
-            return 'Split', match.group(1), ratio
-        return None, None, None
+            return 'Split', match.group(1), ratio, None
+        return None, None, None, None
     
     def parse_spinoff_text(text):
         match = re.search(r'^(\w+)\(\w+\) Spinoff\s+(\d+) for (\d+) \((\w+),.+\)', text, re.IGNORECASE)
         if match:
             ratio = float(match.group(2)) / float(match.group(3))
-            return 'Spinoff', match.group(4), ratio
-        return None, None, None
+            return 'Spinoff', match.group(4), ratio, None
+        return None, None, None, None
     
     def parse_acquisition_text(text):
-        # e.g.: ATVI(US00507V1098) Merged(Acquisition) FOR USD 95.00 PER SHARE
+        # Stock bought by another: ATVI(US00507V1098) Merged(Acquisition) FOR USD 95.00 PER SHARE
         match = re.search(r'^(\w+)\(\w+\) Merged\(Acquisition\) FOR (\w+) (\d+\.\d+) PER SHARE', text, re.IGNORECASE)
         if match:
             ratio = float(match.group(3))
-            return 'Acquisition', match.group(1), ratio
-        return None, None, None
+            return 'Acquisition', match.group(1), ratio, match.group(2)
+        # Converted to other stock: MRO(US5658491064) Merged(Acquisition) WITH US20825C1045 255 for 1000 (COP, CONOCOPHILLIPS, US20825C1045)
+        match = re.search(r'^(\w+)\(\w+\) Merged\(Acquisition\) WITH (\w+) (\d+) for (\d+) \((\w+),', text, re.IGNORECASE)
+        if match:
+            ratio = float(match.group(4)) / float(match.group(3))
+            return 'Acquisition', match.group(1), ratio, match.group(5)
+        return None, None, None, None
     
     df['Quantity'] = pd.to_numeric(df['Quantity'].astype(str).str.replace(',', ''), errors='coerce')
     df['Date/Time'] = pd.to_datetime(df['Date/Time'], format='%Y-%m-%d, %H:%M:%S')
     if not df.empty:
-        df[['Action', 'Symbol', 'Ratio']] = df['Description'].apply(lambda x: pd.Series(parse_action_text(x)))
+        df[['Action', 'Symbol', 'Ratio', 'Target']] = df['Description'].apply(lambda x: pd.Series(parse_action_text(x)))
     df.drop(columns=['Code'], inplace=True)
     df = actions.convert_action_columns(df)
     return df
