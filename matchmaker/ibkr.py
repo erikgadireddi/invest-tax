@@ -192,7 +192,7 @@ def import_activity_statement(file):
     account = re.match(r'U\d+', account).group(0)
     if 'Account' not in trades.columns:
         trades['Account'] = account
-    trades['Account'].fillna(account)
+    trades['Account'].fillna(account, inplace=True)
     open_positions['Account'] = account
 
     return trades, actions, open_positions

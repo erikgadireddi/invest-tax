@@ -41,7 +41,8 @@ def check_open_position_mismatches(trades, positions, max_date=pd.Timestamp.now(
         merged = snapshot.merge(open_positions, on=['Ticker', 'Account'], suffixes=(' Positions', ' Trades'), how='outer')
         merged['Quantity Mismatch'] = merged['Account Accumulated Quantity'].fillna(0) - merged['Quantity'].fillna(0) * merged['Split Ratio'].fillna(1)
         merged['Snapshot Date'] = time
-        mismatches = pd.concat([mismatches, merged[merged['Quantity Mismatch'] != 0]])
+        new_mismatches = merged[merged['Quantity Mismatch'] != 0]
+        mismatches = pd.concat([mismatches, new_mismatches])
 
     # Fill in the Date column from Date/Time in case it was NaT
     if len(mismatches) == 0:
