@@ -11,12 +11,17 @@ prefixes = [
 ]
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Anonymize IBKR report by removing personal information, net worth and anything that's not directly needed to match trades.")
+    parser = argparse.ArgumentParser(description="Anonymize IBKR report by removing personal information, net worth and anything that's not directly needed to match trades." 
+                                     "Example usage: anonymize.py report_2024.csv --remove AAPL,TSLA,BABA")
     parser.add_argument("input", help="Input IBKR report")
     parser.add_argument("--output", "-o", help="Output report file. If not specified, the input file will be used with _anonymized appended.")
-    parser.add_argument("--remove", "-r", action="append", help="Tickers to remove from the report. Use this to narrow it down to only what you want to share.", default=[])
-    
-    args = parser.parse_args()
+    parser.add_argument("--remove", "-r", action="append", help="Comma-separated tickers to remove from the report. Use this to narrow it down to only what you want to share.", default=[])
+
+    try:
+        args = parser.parse_args()
+    except SystemExit:
+        parser.print_help()
+        sys.exit(1)
 
     input_file = args.input
     output_file = args.output if args.output else input_file.rsplit('.', 1)[0] + "_anonymized." + input_file.rsplit('.', 1)[1]
