@@ -91,7 +91,14 @@ def compute_accumulated_positions(trades, symbols):
     # Now also compute accumulated quantity per account
     trades['Account Accumulated Quantity'] = trades.groupby(['Account', 'Ticker'])['Quantity'].cumsum()
     return trades
-    
+
+def per_account_transfers_with_missing_transactions(trades):
+    return trades[(trades['Action'] == 'Transfer') & (trades['Type'] == 'Out') & (trades['Quantity'] < 0) & (trades['Account Accumulated Quantity'] < 0)]
+
+def positions_with_missing_transactions(trades):
+    return trades[((trades['Accumulated Quantity'] < 0) & (trades['Type'] == 'Long') & (trades['Action'] == 'Close') | 
+                  (trades['Accumulated Quantity'] > 0) & (trades['Type'] == 'Short') & (trades['Action'] == 'Close'))]
+
 # Adjust quantities and trade prices for splits
 @st.cache_data()
 def adjust_for_splits(trades, split_actions):

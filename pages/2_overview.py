@@ -4,6 +4,7 @@ from streamlit_pills import pills
 import matchmaker.currency as currency
 import matchmaker.data as data 
 import matchmaker.ux as ux
+import matchmaker.trade as trade
 from menu import menu
 
 st.set_page_config(page_title='Doplnění obchodů', layout='wide')
@@ -37,11 +38,18 @@ if trades is not None and not trades.empty:
     else: 
         st.caption(f'Profit dle brokera: :green[{profit_czk:.0f}] CZK')
         
-    suspicious_positions = shown_trades[((shown_trades['Accumulated Quantity'] < 0) & (shown_trades['Type'] == 'Long') & (shown_trades['Action'] == 'Close') | 
-                                         (shown_trades['Accumulated Quantity'] > 0) & (shown_trades['Type'] == 'Short') & (shown_trades['Action'] == 'Close'))]
-    if len(suspicious_positions) > 0:
+    missing_history = trade.per_account_transfers_with_missing_transactions(shown_trades)
+    if len(missing_history) > 0:
         with st.container(border=False):
-            st.error('Historie obsahuje long transakce vedoucí k negativním pozicím. Je možné, že nebyly nahrány všechny obchody či korporátní akce. Zkontrolujte, prosím, zdrojová data a případně doplňte chybějící transakce.')
+            st.error('Historie obsahuje převody pozic mezi účty, kterým chybí nákupní transakce. Pro efektivní párování je třeba doplnit chybějící obchody, aby nákupní cena a datum mohly být použity pro daňové optimalizace.')
             table_descriptor = ux.transaction_table_descriptor_czk()
-            st.dataframe(suspicious_positions, hide_index=True, column_config=table_descriptor['column_config'], column_order=table_descriptor['column_order'])
-            ux.add_trades_editor(trades, suspicious_positions.iloc[0])
+            st.dataframe(missing_history, hide_index=True, column_config=table_descriptor['column_config'], column_order=table_descriptor['column_order'])
+            ux.add_trades_editor(trades, missing_history.iloc[0])   
+    else:
+        suspicious_positions = trade.positions_with_missing_transactions(shown_trades)
+        if len(suspicious_positions) > 0:
+            with st.container(border=False):
+                st.error('Historie obsahuje long transakce vedoucí k negativním pozicím. Je možné, že nebyly nahrány všechny obchody či korporátní akce. Zkontrolujte, prosím, zdrojová data a případně doplňte chybějící transakce.')
+                table_descriptor = ux.transaction_table_descriptor_czk()
+                st.dataframe(suspicious_positions, hide_index=True, column_config=table_descriptor['column_config'], column_order=table_descriptor['column_order'])
+                ux.add_trades_editor(trades, suspicious_positions.iloc[0])
