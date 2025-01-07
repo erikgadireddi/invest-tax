@@ -26,6 +26,22 @@ def parse_csv_into_prefixed_lines(file):
         prefix_dict[key].append(line)
     return prefix_dict
 
+def convert_option_names(df):
+    if 'Option Name' not in df.columns:
+        return df
+    # Vectorized parsing of option names
+    option_mask = df['Option Name'].notna() 
+    option_parts = df.loc[option_mask, 'Symbol'].str.split(' ', expand=True)
+    if not option_parts.empty:
+        # Splits the option name into symbol, expiration date, strike price and put/call
+        # Example option name: CELH 20SEP24 40 P
+        df.loc[option_mask, 'Option Name'] = df.loc[option_mask, 'Symbol']
+        # df.loc[option_mask, 'Symbol'] = option_parts[0]
+        df.loc[option_mask, 'Expiration'] = option_parts[1]
+        df.loc[option_mask, 'Strike'] = option_parts[2]
+        df.loc[option_mask, 'Option Type'] = option_parts[3]
+    return df
+    
 # Import trades from IBKR format
 # First line is the headers: Trades,Header,DataDiscriminator,Asset Category,Currency,Symbol,Date/Time,Quantity,T. Price,C. Price,Proceeds,Comm/Fee,Basis,Realized P/L,MTM P/L,Code
 # Column	Descriptions
@@ -45,11 +61,11 @@ def parse_csv_into_prefixed_lines(file):
 # Example line: Trades,Data,Order,Stocks,CZK,CEZ,"2023-08-03, 08:44:03",250,954,960,-238500,-763.2,239263.2,0,1500,O
 def import_trades(file):
     df = dataframe_from_prefixed_lines(file, 'Trades')
-    df = df[(df['Trades'] == 'Trades') & (df['Header'] == 'Data') & (df['DataDiscriminator'] == 'Order') & (df['Asset Category'] == 'Stocks')]
-    # Filter DataFrame by Asset Category == 'Stocks' and DataDiscriminator == 'Data' (rest is partial sums and totals)
-    df = df[(df['Asset Category'] == 'Stocks') & (df['DataDiscriminator'] == 'Order')]
+    df = df[(df['Trades'] == 'Trades') & (df['Header'] == 'Data') & (df['DataDiscriminator'] == 'Order') & ((df['Asset Category'] == 'Stocks') | (df['Asset Category'] == 'Equity and Index Options'))]
     df['Date/Time'] = pd.to_datetime(df['Date/Time'], format='%Y-%m-%d, %H:%M:%S')
     df['Quantity'] = pd.to_numeric(df['Quantity'].astype(str).str.replace(',', ''), errors='coerce')
+    # df['Option Name'] = df[df['Asset Category'] == 'Equity and Index Options']['Symbol']
+    df = convert_option_names(df)
     return normalize_trades(df)
 
 def import_corporate_actions(file):
