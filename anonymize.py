@@ -3,7 +3,7 @@ import argparse
 
 prefixes = [
     "Statement,",
-    "Account Information,Data,Account,",
+    "Account Information,Data,Account",
     "Trades,",
     "Corporate Actions,",
     "Mark-to-Market Performance Summary,",
