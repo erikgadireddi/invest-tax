@@ -64,15 +64,15 @@ def process_after_import(trades, actions=None):
 
 # Add split data column to trades by consulting split actions
 def add_split_data(target, split_actions):
-    split_actions = split_actions[split_actions['Action'] == 'Split']
+    target['Split Ratio'] = 1
     if not split_actions.empty:
+        split_actions = split_actions[split_actions['Action'] == 'Split']
         # Enhance trades with Split Ratio column by looking up same symbol in split_actions
         #  and summing all ratio columns that have a date sooner than the row in trades    
         split_actions = split_actions.sort_values(by='Date/Time', ascending=True)
         split_actions['Cumulative Ratio'] = split_actions.groupby('Symbol')['Ratio'].cumprod()
         target['Split Ratio'] = 1 / target.apply(lambda row: split_actions[(split_actions['Symbol'] == row['Symbol']) & (split_actions['Date/Time'] > row['Date/Time'])]['Cumulative Ratio'].min(), axis=1)
         split_actions.drop(columns=['Cumulative Ratio'], inplace=True)
-    target.fillna({'Split Ratio': 1}, inplace=True)
     return target
 
 # Add or refresh dynamically computed columns
@@ -87,9 +87,9 @@ def compute_accumulated_positions(trades, symbols):
     trades.drop(columns=['Ticker'], errors='ignore', inplace=True)
     trades = trades.reset_index().rename(columns={'index': 'Hash'}).merge(symbols[['Symbol', 'Ticker']], on='Symbol', how='left').set_index('Hash')
     trades.sort_values(by=['Date/Time'], inplace=True)
-    trades['Accumulated Quantity'] = trades.groupby('Ticker')['Quantity'].cumsum()
+    trades['Accumulated Quantity'] = trades.groupby('Ticker')['Quantity'].cumsum().astype(np.float64)
     # Now also compute accumulated quantity per account
-    trades['Account Accumulated Quantity'] = trades.groupby(['Account', 'Ticker'])['Quantity'].cumsum()
+    trades['Account Accumulated Quantity'] = trades.groupby(['Account', 'Ticker'])['Quantity'].cumsum().astype(np.float64)
     return trades
 
 def per_account_transfers_with_missing_transactions(trades):
