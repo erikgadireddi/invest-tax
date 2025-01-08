@@ -23,16 +23,16 @@ yearly_rates = currency.load_yearly_rates(st.session_state['settings']['currency
 if trades is not None and not trades.empty:
     year = st.selectbox('Zobrazuji symboly', [0] + sorted(trades['Year'].unique()), index=0, key='year', format_func=lambda x: 'Všechny' if x == 0 else f's transakcemi od roku {x}')
     if year is None or year == 0:
-        symbols = sorted(trades['Symbol'].unique())
+        symbols = sorted(trades['Ticker'].unique())
     else:
-        symbols = sorted(trades[trades['Year'] >= year]['Symbol'].unique())
+        symbols = sorted(trades[trades['Year'] >= year]['Ticker'].unique())
     if len(symbols) == 0:
         st.caption('Pro zvolené období nebyly nalezeny žádné transakce.')
         st.stop()
         
     symbol = pills('Vyberte symbol pro inspekci', options=symbols)
     st.caption(f'Vysvětlivky k jednotlivým sloupcům jsou k dispozici na najetí myší.')
-    shown_trades = trades[trades['Symbol'] == symbol].sort_values(by='Date/Time')
+    shown_trades = trades[trades['Ticker'] == symbol].sort_values(by='Date/Time')
     if shown_trades.empty:
         st.caption(f'Pro symbol {symbol} nebyly nalezeny žádné obchody.')
     else:

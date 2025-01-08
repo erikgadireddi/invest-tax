@@ -118,7 +118,7 @@ def main():
                 state.trades = compute_accumulated_positions(state.trades, state.symbols)
                 state.positions.drop(columns=['Ticker'], inplace=True)
                 state.positions = state.positions.merge(state.symbols[['Symbol', 'Ticker']], on='Symbol', how='left')
-            
+            state.trades['Display Name'] = state.trades['Ticker'] + state.trades['Display Suffix'].fillna('')
             
         state.save_session()
 

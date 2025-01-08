@@ -5,8 +5,9 @@ from streamlit_pills import pills
 
 def transaction_table_descriptor_czk():
    return {
-       'column_order' : ('Symbol', 'Date/Time', 'Quantity', 'Currency', 'T. Price', 'Comm/Fee', 'CZK Proceeds', 'CZK Fee', 'CZK Profit', 'Accumulated Quantity', 'Action', 'Type'),
+       'column_order' : ('Display Name', 'Date/Time', 'Quantity', 'Currency', 'T. Price', 'Comm/Fee', 'CZK Proceeds', 'CZK Fee', 'CZK Profit', 'Accumulated Quantity', 'Action', 'Type'),
        'column_config' : {
+                        'Display Name': st.column_config.TextColumn("Název", help="Název instrumentu"),
                         'Currency': st.column_config.TextColumn("Měna", help="Měna v které bylo obchodováno"), 
                         'Quantity': st.column_config.NumberColumn("Počet", help="Počet kusů daného instrumentu", format="%f"), 
                         'Date/Time': st.column_config.DatetimeColumn("Čas transakce", help="Datum a čas transakce"), 
@@ -25,8 +26,9 @@ def transaction_table_descriptor_czk():
    
 def transaction_table_descriptor_native():
    return {
-       'column_order' : ('Symbol', 'Date/Time', 'Quantity', 'Currency', 'T. Price', 'Comm/Fee', 'Realized P/L', 'Accumulated Quantity', 'Action', 'Account'),
+       'column_order' : ('Display Name', 'Date/Time', 'Quantity', 'Currency', 'T. Price', 'Comm/Fee', 'Realized P/L', 'Accumulated Quantity', 'Action', 'Account'),
        'column_config' : {
+                        'Display Name': st.column_config.TextColumn("Název", help="Název instrumentu"),
                         'Currency': st.column_config.TextColumn("Měna", help="Měna v které bylo obchodováno"), 
                         'Quantity': st.column_config.NumberColumn("Počet", help="Počet kusů daného instrumentu", format="%f"), 
                         'Date/Time': st.column_config.DatetimeColumn("Čas transakce", help="Datum a čas transakce"), 

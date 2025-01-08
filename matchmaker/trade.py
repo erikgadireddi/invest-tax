@@ -14,6 +14,9 @@ def convert_trade_columns(df):
     df['MTM P/L'] = pd.to_numeric(df['MTM P/L'], errors='coerce').astype(np.float64)
     df['T. Price'] = pd.to_numeric(df['T. Price'], errors='coerce').astype(np.float64)
     df['C. Price'] = pd.to_numeric(df['C. Price'], errors='coerce').astype(np.float64)
+    if 'Display Suffix' not in df.columns:
+        df['Display Suffix'] = ''
+    df['Display Suffix'] = df['Display Suffix'].astype(str)
     if 'Code' in df.columns:
        df['Action'] = df['Code'].apply(lambda x: 'Open' if ('O' in x or 'Ca' in x) else 'Close' if 'C' in x else 'Unknown')
     # If action is not Transfer, then Type is Long if we're opening a position, Short if closing
@@ -65,8 +68,10 @@ def process_after_import(trades, actions=None):
 # Add split data column to trades by consulting split actions
 def add_split_data(target, split_actions):
     target['Split Ratio'] = 1
+    if split_actions is None or split_actions.empty:
+        return target
+    split_actions = split_actions[split_actions['Action'] == 'Split']
     if not split_actions.empty:
-        split_actions = split_actions[split_actions['Action'] == 'Split']
         # Enhance trades with Split Ratio column by looking up same symbol in split_actions
         #  and summing all ratio columns that have a date sooner than the row in trades    
         split_actions = split_actions.sort_values(by='Date/Time', ascending=True)
@@ -87,9 +92,9 @@ def compute_accumulated_positions(trades, symbols):
     trades.drop(columns=['Ticker'], errors='ignore', inplace=True)
     trades = trades.reset_index().rename(columns={'index': 'Hash'}).merge(symbols[['Symbol', 'Ticker']], on='Symbol', how='left').set_index('Hash')
     trades.sort_values(by=['Date/Time'], inplace=True)
-    trades['Accumulated Quantity'] = trades.groupby('Ticker')['Quantity'].cumsum().astype(np.float64)
-    # Now also compute accumulated quantity per account
-    trades['Account Accumulated Quantity'] = trades.groupby(['Account', 'Ticker'])['Quantity'].cumsum().astype(np.float64)
+    trades['Accumulated Quantity'] = trades.groupby(['Ticker', 'Display Suffix'])['Quantity'].cumsum().astype(np.float64)
+    # Now also compute accumulated quantity per account'
+    trades['Account Accumulated Quantity'] = trades.groupby(['Account', 'Ticker', 'Display Suffix'])['Quantity'].cumsum().astype(np.float64)
     return trades
 
 def per_account_transfers_with_missing_transactions(trades):

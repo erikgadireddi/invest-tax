@@ -36,10 +36,11 @@ def convert_option_names(df):
         # Splits the option name into symbol, expiration date, strike price and put/call
         # Example option name: CELH 20SEP24 40 P
         df.loc[option_mask, 'Option Name'] = df.loc[option_mask, 'Symbol']
-        # df.loc[option_mask, 'Symbol'] = option_parts[0]
         df.loc[option_mask, 'Expiration'] = option_parts[1]
         df.loc[option_mask, 'Strike'] = option_parts[2]
-        df.loc[option_mask, 'Option Type'] = option_parts[3]
+        df.loc[option_mask, 'Option Type'] = option_parts[3].map({'P': 'Put', 'C': 'Call'})
+        df.loc[option_mask, 'Display Suffix'] = ' ' + option_parts[1] + ' ' + option_parts[2] + ' ' + df.loc[option_mask, 'Option Type']
+        df.loc[option_mask, 'Symbol'] = option_parts[0]
     return df
     
 # Import trades from IBKR format
@@ -64,7 +65,8 @@ def import_trades(file):
     df = df[(df['Trades'] == 'Trades') & (df['Header'] == 'Data') & (df['DataDiscriminator'] == 'Order') & ((df['Asset Category'] == 'Stocks') | (df['Asset Category'] == 'Equity and Index Options'))]
     df['Date/Time'] = pd.to_datetime(df['Date/Time'], format='%Y-%m-%d, %H:%M:%S')
     df['Quantity'] = pd.to_numeric(df['Quantity'].astype(str).str.replace(',', ''), errors='coerce')
-    # df['Option Name'] = df[df['Asset Category'] == 'Equity and Index Options']['Symbol']
+    df['Option Name'] = df[df['Asset Category'] == 'Equity and Index Options']['Symbol']
+    df['Display Suffix'] = ''
     df = convert_option_names(df)
     return normalize_trades(df)
 
