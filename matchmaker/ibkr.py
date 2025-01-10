@@ -158,6 +158,7 @@ def import_transfers(file):
     df['MTM P/L'] = 0
     df['T. Price'] = 0
     df['C. Price'] = 0
+    df['Target'] = df['Xfer Account']
     df.drop(columns=['Transfers', 'Header', 'Asset Category', 'Date', 'Type', 'Direction', 'Xfer Company', 'Xfer Account', 'Qty', 'Xfer Price', 'Market Value', 'Cash Amount', 'Code'], inplace=True)
     return normalize_trades(df)
 

@@ -53,3 +53,13 @@ if trades is not None and not trades.empty:
                 table_descriptor = ux.transaction_table_descriptor_czk()
                 st.dataframe(suspicious_positions, hide_index=True, column_config=table_descriptor['column_config'], column_order=table_descriptor['column_order'])
                 ux.add_trades_editor(trades, suspicious_positions.iloc[0])
+
+    missing_transfer_history = trade.transfers_with_missing_transactions(shown_trades)
+    if (len(missing_transfer_history) > 0):
+        with st.container(border=False):
+            st.error('Historie obsahuje příjem instrumentů z cizích účtů, ke kterým je třeba doplnit chybějící nákupy, aby nákupní cena a datum mohly být použity pro daňové optimalizace.')
+            table_descriptor = ux.transaction_table_descriptor_czk()
+            table_descriptor['column_config']['Account'] = st.column_config.TextColumn("Účet", help="Název účtu, odkud byly převedeny instrumenty.")
+            table_descriptor['column_order'] = ('Account',) + table_descriptor['column_order']
+            st.dataframe(missing_transfer_history, hide_index=True, column_config=table_descriptor['column_config'], column_order=table_descriptor['column_order'])
+            ux.add_trades_editor(trades, missing_transfer_history.iloc[0])

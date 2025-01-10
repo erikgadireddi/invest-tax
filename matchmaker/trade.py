@@ -106,6 +106,16 @@ def per_account_transfers_with_missing_transactions(trades):
 def positions_with_missing_transactions(trades):
     return trades[((trades['Accumulated Quantity'] < 0) & (trades['Type'] == 'Long') & (trades['Action'] == 'Close') | 
                   (trades['Accumulated Quantity'] > 0) & (trades['Type'] == 'Short') & (trades['Action'] == 'Close'))]
+    
+def transfers_with_missing_transactions(trades):
+    spinoffs = trades[(trades['Action'] == 'Transfer') & (trades['Type'] != 'Spinoff') & (trades['Quantity'] > 0)]
+    if 'Target' in trades.columns:
+        related_sums = trades.groupby('Target')['Quantity'].sum()
+        # Check if the sum of all trades with the same target is equal to the spinoff quantity
+        spinoffs['Traded Quantity'] = spinoffs[spinoffs['Target'].apply(lambda x: related_sums.get(x, 0) != x)]
+    else:
+        spinoffs['Traded Quantity'] = 0
+    return spinoffs[spinoffs['Traded Quantity'] != spinoffs['Quantity']]
 
 # Adjust quantities and trade prices for splits
 @st.cache_data()
