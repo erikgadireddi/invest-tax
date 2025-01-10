@@ -67,7 +67,7 @@ def process_after_import(trades, actions=None):
 
 # Add split data column to trades by consulting split actions
 def add_split_data(target, split_actions):
-    target['Split Ratio'] = 1
+    target['Split Ratio'] = 1.0
     if split_actions is None or split_actions.empty:
         return target
     split_actions = split_actions[split_actions['Action'] == 'Split']
@@ -77,6 +77,7 @@ def add_split_data(target, split_actions):
         split_actions = split_actions.sort_values(by='Date/Time', ascending=True)
         split_actions['Cumulative Ratio'] = split_actions.groupby('Symbol')['Ratio'].cumprod()
         target['Split Ratio'] = 1 / target.apply(lambda row: split_actions[(split_actions['Symbol'] == row['Symbol']) & (split_actions['Date/Time'] > row['Date/Time'])]['Cumulative Ratio'].min(), axis=1)
+        target['Split Ratio'].fillna(1.0, inplace=True)
         split_actions.drop(columns=['Cumulative Ratio'], inplace=True)
     return target
 
