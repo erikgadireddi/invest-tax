@@ -46,9 +46,9 @@ def pair_buy_sell(trades, pairs, strategy, from_year=None):
     
     trades = fill_trades_covered_quantity(trades, pairs)
     # trades.round(3).to_csv('paired.order.quantities.csv')
-    per_symbol = trades.groupby('Symbol')
+    per_symbol = trades.groupby('Display Name')
     if pairs is None:
-        pairs = pd.DataFrame(columns=['Buy Transaction', 'Sell Transaction', 'Symbol', 'Quantity', 'Buy Time', 'Buy Price', 'Sell Time', 'Sell Price', 'Buy Cost', 'Sell Proceeds', 'Revenue', 'Ratio', 'Type', 'Taxable'])
+        pairs = pd.DataFrame(columns=['Buy Transaction', 'Sell Transaction', 'Display Name', 'Quantity', 'Buy Time', 'Buy Price', 'Sell Time', 'Sell Price', 'Buy Cost', 'Sell Proceeds', 'Revenue', 'Ratio', 'Type', 'Taxable'])
     for symbol, group in per_symbol:
         # Find sell orders
         sells = group[group['Action'] == 'Close']
@@ -112,7 +112,7 @@ def pair_buy_sell(trades, pairs, strategy, from_year=None):
                             continue
                         sell['Uncovered Quantity'] += quantity
                         # Add the pair to the DataFrame, indexing by hashes of the buy and sell transactions
-                        data = {'Sell Transaction': index_s, 'Buy Transaction': index_b, 'Symbol': symbol, 'Currency': buy['Currency'],
+                        data = {'Sell Transaction': index_s, 'Buy Transaction': index_b, 'Display Name': symbol, 'Currency': buy['Currency'],
                                 'Quantity': quantity, 'Buy Time': buy['Date/Time'], 'Sell Time': sell['Date/Time'],
                                 'Buy Price': open['T. Price'], 
                                 'Sell Price': close['T. Price'], 
@@ -140,4 +140,4 @@ def pair_buy_sell(trades, pairs, strategy, from_year=None):
         return trades[trades['Action'] == 'Open'], trades[trades['Action'] == 'Close'], pd.DataFrame()
     
     pairs['Revenue'] = pairs['Proceeds'] + pairs['Cost']
-    return trades[trades['Action'] == 'Open'], trades[trades['Action'] == 'Close'], pairs.sort_values(by=['Symbol','Sell Time', 'Buy Time'])
+    return trades[trades['Action'] == 'Open'], trades[trades['Action'] == 'Close'], pairs.sort_values(by=['Display Name','Sell Time', 'Buy Time'])

@@ -84,9 +84,10 @@ def page():
     pairs_in_czk['Percent Return'] = pairs_in_czk['Ratio'] * 100
     filtered_pairs = pairs_in_czk[pairs_in_czk['Sell Time'].dt.year == show_year]
     trades_display = st.dataframe(filtered_pairs, hide_index=True, height=600, 
-                                column_order=('Symbol','Quantity','Buy Time','Buy Price','Sell Time','Sell Price','Currency','Buy Cost','Sell Proceeds','Revenue',
+                                column_order=('Display Name','Quantity','Buy Time','Buy Price','Sell Time','Sell Price','Currency','Buy Cost','Sell Proceeds','Revenue',
                                             'CZK Revenue','Percent Return','Type','Taxable','Buy CZK Rate','Sell CZK Rate', 'CZK Cost','CZK Proceeds'),
                                 column_config={
+                                    'Display Name': st.column_config.TextColumn("Název", help="Název instrumentu"),
                                     'Quantity': st.column_config.NumberColumn("Počet", help="Počet kusů daného instrumentu", format="%d" if show_strategy != 'AverageCost' else "%.2f"), 
                                     'Buy Time': st.column_config.DatetimeColumn("Datum nákupu", help="Datum nákupní transakce"), 
                                     'Sell Time': st.column_config.DatetimeColumn("Datum prodeje", help="Datum prodejní transakce"), 
