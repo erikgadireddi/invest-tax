@@ -127,8 +127,9 @@ def main():
     
     state.trades.sort_values(by=['Symbol', 'Date/Time'], inplace=True)
     st.caption(f':blue[{len(state.trades)}] nalezených obchodů.')
-    st.dataframe(data=state.trades, hide_index=True, width=1100, height=500, column_order=('Symbol', 'Date/Time', 'Action', 'Quantity', 'Currency', 'T. Price', 'Proceeds', 'Comm/Fee', 'Realized P/L', 'Accumulated Quantity', 'Split Ratio'),
+    st.dataframe(data=state.trades, hide_index=True, width=1100, height=500, column_order=('Ticker', 'Date/Time', 'Action', 'Quantity', 'Currency', 'T. Price', 'Proceeds', 'Comm/Fee', 'Realized P/L', 'Accumulated Quantity', 'Split Ratio'),
                     column_config={
+                        'Ticker': st.column_config.TextColumn("Název", help="Název instrumentu"),
                         'Date/Time': st.column_config.DatetimeColumn("Datum", help="Čas obchodu"),
                         'Action': st.column_config.TextColumn("Akce", help="Typ obchodu: Buy, Sell, Dividend, Split, Transfer"),
                         'Realized P/L': st.column_config.NumberColumn("Profit", format="%.1f"), 

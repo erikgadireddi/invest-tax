@@ -28,7 +28,9 @@ def convert_trade_columns(df):
         if (row['Action'] == 'Close' and row['Quantity'] < 0) or (row['Action'] == 'Open' and row['Quantity'] > 0):
             return 'Long'
         return 'Short'
-    df['Type'] = df.apply(get_type, axis=1)
+    if 'Type' not in df.columns:
+        df['Type'] = None
+    df['Type'] = df['Type'].fillna(df.apply(get_type, axis=1))
     return df
 
 # Process trades from raw DataFrame

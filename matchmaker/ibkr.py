@@ -177,7 +177,8 @@ def generate_transfers_from_actions(actions):
             'MTM P/L': 0,
             'T. Price': spinoff['Proceeds'] / abs(spinoff['Quantity'])  if spinoff['Quantity'] != 0 else 0,
             'C. Price': 0,
-            'Action': 'Transfer'
+            'Action': 'Transfer',
+            'Type': spinoff['Action'],
         }
         transfers = pd.concat([transfers, pd.DataFrame([transfer])], ignore_index=True)
     return normalize_trades(transfers)
