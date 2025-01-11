@@ -68,6 +68,7 @@ def import_trades(file):
     df['Option Name'] = df[df['Asset Category'] == 'Equity and Index Options']['Symbol']
     df['Display Suffix'] = ''
     df = convert_option_names(df)
+    df.drop(columns=['Trades', 'Header', 'DataDiscriminator', 'Asset Category',], inplace=True)
     return normalize_trades(df)
 
 def import_corporate_actions(file):

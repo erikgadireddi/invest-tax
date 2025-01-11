@@ -13,6 +13,8 @@ def convert_position_history_columns(df):
     df['Mark-to-Market P/L Commissions'] = pd.to_numeric(df['Mark-to-Market P/L Commissions'], errors='coerce')
     df['Mark-to-Market P/L Other'] = pd.to_numeric(df['Mark-to-Market P/L Other'], errors='coerce')
     df['Mark-to-Market P/L Total'] = pd.to_numeric(df['Mark-to-Market P/L Total'], errors='coerce')
+    df['Category'] = 'Open Positions'
+    df = df[['Category'] + [col for col in df.columns if col != 'Category']]
     return df
 
 # Compute open positions per symbol at a given time

@@ -16,8 +16,8 @@ def convert_trade_columns(df):
     df['C. Price'] = pd.to_numeric(df['C. Price'], errors='coerce').astype(np.float64)
     if 'Display Suffix' not in df.columns:
         df['Display Suffix'] = ''
-    df['Display Suffix'] = df['Display Suffix'].astype(str)
-    if 'Code' in df.columns:
+    df['Display Suffix'] = df['Display Suffix'].fillna('').astype(str)
+    if 'Action' not in df.columns and 'Code' in df.columns:
        df['Action'] = df['Code'].apply(lambda x: 'Open' if ('O' in x or 'Ca' in x) else 'Close' if 'C' in x else 'Unknown')
     # If action is not Transfer, then Type is Long if we're opening a position, Short if closing
     def get_type(row):
@@ -41,6 +41,8 @@ def normalize_trades(df):
     df = convert_trade_columns(df)
     df['Orig. Quantity'] = df['Quantity']
     df['Orig. T. Price'] = df['T. Price']
+    df['Category'] = 'Trades'
+    df = df[['Category'] + [col for col in df.columns if col != 'Category']]
     # Set up the hash column as index
     df['Hash'] = df.apply(data.hash_row, axis=1)
     df.set_index('Hash', inplace=True)
