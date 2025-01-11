@@ -59,8 +59,7 @@ def add_trades_editor(trades, selected_trade=None, callback=None):
             callback = lambda df: add_buy_callback(df, trades)
         
         # This will be the pre-filled trade 
-        if len(selected_trade) > 1:
-            selected_trade = selected_trade.iloc[0]
+
         if selected_trade is None:
             selected_trade = trades.iloc[0]
         

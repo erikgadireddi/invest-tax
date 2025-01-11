@@ -42,6 +42,7 @@ def load_snapshot(file):
         if line == 'Section: Position History\n':
             break
         actions_csv += line    
+    positions_csv = ''
     while True:
         line = file.readline().decode('utf-8')
         if not line:
