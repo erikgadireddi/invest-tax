@@ -108,14 +108,25 @@ def positions_with_missing_transactions(trades):
                   (trades['Accumulated Quantity'] > 0) & (trades['Type'] == 'Short') & (trades['Action'] == 'Close'))]
     
 def transfers_with_missing_transactions(trades):
-    spinoffs = trades[(trades['Action'] == 'Transfer') & (trades['Type'] != 'Spinoff') & (trades['Quantity'] > 0)]
+    transfers = trades[(trades['Action'] == 'Transfer') & (trades['Type'] != 'Spinoff')] 
+    outgoing = transfers[transfers['Type'] == 'Out']
     if 'Target' in trades.columns:
-        related_sums = trades.groupby('Target')['Quantity'].sum()
-        # Check if the sum of all trades with the same target is equal to the spinoff quantity
-        spinoffs['Traded Quantity'] = spinoffs[spinoffs['Target'].apply(lambda x: related_sums.get(x, 0) != x)]
-    else:
-        spinoffs['Traded Quantity'] = 0
-    return spinoffs[spinoffs['Traded Quantity'] != spinoffs['Quantity']]
+        incoming = transfers[transfers['Type'] == 'In']
+        # Compute over outgoing account name
+        incoming_grouped = incoming.groupby(['Display Name', 'Account'])['Quantity'].sum()
+        outgoing_grouped = outgoing.groupby(['Display Name', 'Target'])['Quantity'].sum()
+        outgoing_grouped.index = outgoing_grouped.index.set_names('Account', level=1)
+        unmatched_outgoing = outgoing_grouped.add(incoming_grouped, fill_value=0)
+        unmatched_outgoing = unmatched_outgoing[unmatched_outgoing < 0]
+        # Do it again to persist incoming account names
+        incoming_grouped = incoming.groupby(['Display Name', 'Target'])['Quantity'].sum()
+        outgoing_grouped = outgoing.groupby(['Display Name', 'Account'])['Quantity'].sum()
+        outgoing_grouped.index = outgoing_grouped.index.set_names('Target', level=1)
+        unmatched_incoming = incoming_grouped.add(outgoing_grouped, fill_value=0)
+        unmatched_incoming = unmatched_incoming[unmatched_incoming > 0]
+        return unmatched_incoming, unmatched_outgoing
+    
+    return pd.DataFrame()
 
 # Adjust quantities and trade prices for splits
 @st.cache_data()
