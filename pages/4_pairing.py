@@ -14,8 +14,8 @@ def page():
     menu()
     data.load_settings()
 
-    # All the trades 
-    trades = st.session_state.trades if 'trades' in st.session_state else pd.DataFrame()
+    state = data.State()
+    state.load_session()
     # Trades we previously tried to pair. Will be used to check when recomputation is needed.
     computed_trades = st.session_state.computed_trades if 'computed_trades' in st.session_state else pd.DataFrame()
     match_config = st.session_state.match_config if 'match_config' in st.session_state else {}
@@ -23,16 +23,16 @@ def page():
     buys = st.session_state.buys if 'buys' in st.session_state else pd.DataFrame()
     sells = st.session_state.sells if 'sells' in st.session_state else pd.DataFrame()
     previous_config = copy.deepcopy(match_config)
-    if trades.empty:
+    if state.trades.empty:
         st.caption('Nebyly importovány žádné obchody.')
         st.page_link("pages/1_import_trades.py", label="📥 Přejít na import obchodů")
         return
         
-    st.caption(str(len(trades)) + ' obchodů k dispozici.')
+    st.caption(str(len(state.trades)) + ' obchodů k dispozici.')
     # Matching configuration is a dictionary[year] of:
     #  strategy: FIFO, LIFO, AverageCost, MaxLoss, MaxProfit
     #  use_yearly_rates: bool
-    trades = trades[(trades['Action'] == 'Open') | (trades['Action'] == 'Close')] # Filter out transfers and other transactions
+    trades = state.trades[(state.trades['Action'] == 'Open') | (state.trades['Action'] == 'Close')] # Filter out transfers and other transactions
     strategies = ['FIFO', 'LIFO', 'AverageCost', 'MaxLoss', 'MaxProfit']
     st.session_state.update(year=ux.add_years_filter(trades, False, 'Rok pro párování'))
     years = sorted(trades['Year'].unique())
@@ -121,6 +121,6 @@ def page():
         st.subheader('Nenapárované obchody')
         table_descriptor = ux.transaction_table_descriptor_czk()
         st.dataframe(unpaired_sells, hide_index=True, column_config=table_descriptor['column_config'], column_order=table_descriptor['column_order'])
-        ux.add_trades_editor(trades, unpaired_sells.iloc[0])
+        ux.add_trades_editor(state, unpaired_sells.iloc[0])
 
 page()

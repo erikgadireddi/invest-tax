@@ -11,28 +11,28 @@ menu()
 
 data.load_settings()
 
-trades = st.session_state.trades if 'trades' in st.session_state else pd.DataFrame()
-symbol = st.session_state.symbol if 'symbol' in st.session_state else None
+state = data.State()
+state.load_session()
 
-if trades.empty:
+if state.trades.empty:
     st.caption('Nebyly importovány žádné obchody.')
     st.page_link("pages/1_import_trades.py", label="📥 Přejít na import obchodů")
 
 yearly_rates = currency.load_yearly_rates(st.session_state['settings']['currency_rates_dir'])
 
-if trades is not None and not trades.empty:
-    year = st.selectbox('Zobrazuji symboly', [0] + sorted(trades['Year'].unique()), index=0, key='year', format_func=lambda x: 'Všechny' if x == 0 else f's transakcemi od roku {x}')
+if state.trades is not None and not state.trades.empty:
+    year = st.selectbox('Zobrazuji symboly', [0] + sorted(state.trades['Year'].unique()), index=0, key='year', format_func=lambda x: 'Všechny' if x == 0 else f's transakcemi od roku {x}')
     if year is None or year == 0:
-        symbols = sorted(trades['Ticker'].unique())
+        symbols = sorted(state.trades['Ticker'].unique())
     else:
-        symbols = sorted(trades[trades['Year'] >= year]['Ticker'].unique())
+        symbols = sorted(state.trades[state.trades['Year'] >= year]['Ticker'].unique())
     if len(symbols) == 0:
         st.caption('Pro zvolené období nebyly nalezeny žádné transakce.')
         st.stop()
         
     symbol = pills('Vyberte symbol pro inspekci', options=symbols)
     st.caption(f'Vysvětlivky k jednotlivým sloupcům jsou k dispozici na najetí myší.')
-    shown_trades = trades[trades['Ticker'] == symbol].sort_values(by='Date/Time')
+    shown_trades = state.trades[state.trades['Ticker'] == symbol].sort_values(by='Date/Time')
     if shown_trades.empty:
         st.caption(f'Pro symbol {symbol} nebyly nalezeny žádné obchody.')
     else:
@@ -50,4 +50,4 @@ if trades is not None and not trades.empty:
             st.caption('Historie obsahuje long transakce vedoucí k negativním pozicím. Je možné, že nebyly nahrány všechny obchody či korporátní akce. Zkontrolujte, prosím, zdrojová data a případně doplňte chybějící transakce.')
             table_descriptor = ux.transaction_table_descriptor_native()
             st.dataframe(suspicious_positions, hide_index=True, column_config=table_descriptor['column_config'], column_order=table_descriptor['column_order'])
-            ux.add_trades_editor(trades, suspicious_positions.iloc[0])
+            ux.add_trades_editor(state, suspicious_positions.iloc[0])

@@ -1,6 +1,7 @@
 # Used to hash entire rows since there is no unique identifier for each row
 import hashlib
-from io import StringIO
+from matchmaker import trade
+from matchmaker import position
 import json
 import pandas as pd
 import streamlit as st
@@ -43,3 +44,25 @@ class State:
         st.session_state.update(actions=self.actions)
         st.session_state.update(positions=self.positions)
         st.session_state.update(symbols=self.symbols)
+
+    def recompute_positions(self):
+        if len(self.trades) > 0:
+            self.trades = trade.adjust_for_splits(self.trades, self.actions)
+            # Create a map of symbols that could be renamed (but we don't know for now)
+            all_symbols = pd.concat([self.trades['Symbol'], self.positions['Symbol']]).unique()
+            self.symbols = pd.DataFrame(all_symbols, columns=['Symbol'])
+            self.symbols['Ticker'] = self.symbols['Symbol']
+            self.trades = trade.compute_accumulated_positions(self.trades, self.symbols)
+            self.positions.drop(columns=['Ticker'], errors='ignore', inplace=True)
+            self.positions = self.positions.merge(self.symbols[['Symbol', 'Ticker']], on='Symbol', how='left')
+            self.positions['Date/Time'] = pd.to_datetime(self.positions['Date']) + pd.Timedelta(seconds=86399) # Add 23:59:59 to the date
+            self.positions = trade.add_split_data(self.positions, self.actions)
+            mismatches, renames = position.check_open_position_mismatches(self.trades, self.positions)
+            for index, row in renames.iterrows():
+                self.symbols.loc[self.symbols['Symbol'] == row['From'], ['Ticker', 'Date']] = [row['To'], row['Date']] # Use this in 5_positions instead of guesses
+            # Now we can adjust the trades for the renames
+            if len(renames) > 0:
+                self.trades = trade.compute_accumulated_positions(self.trades, self.symbols)
+                self.positions.drop(columns=['Ticker'], inplace=True)
+                self.positions = self.positions.merge(self.symbols[['Symbol', 'Ticker']], on='Symbol', how='left')
+            self.trades['Display Name'] = self.trades['Ticker'] + self.trades['Display Suffix'].fillna('')

@@ -93,9 +93,13 @@ def _populate_extra_trade_columns(trades):
 
 # Compute accumulated positions for each symbol by simulating all trades
 @st.cache_data()
-def compute_accumulated_positions(trades, symbols):
+def compute_accumulated_positions(trades, symbols=None):
     trades.drop(columns=['Ticker'], errors='ignore', inplace=True)
-    trades = trades.reset_index().rename(columns={'index': 'Hash'}).merge(symbols[['Symbol', 'Ticker']], on='Symbol', how='left').set_index('Hash')
+    trades = trades.reset_index().rename(columns={'index': 'Hash'})
+    if symbols is not None:
+        trades = trades.merge(symbols[['Symbol', 'Ticker']], on='Symbol', how='left').set_index('Hash')
+    else:
+        trades['Ticker'] = trades['Symbol']
     trades.sort_values(by=['Date/Time'], inplace=True)
     trades['Accumulated Quantity'] = trades.groupby(['Ticker', 'Display Suffix'])['Quantity'].cumsum().astype(np.float64)
     # Now also compute accumulated quantity per account'

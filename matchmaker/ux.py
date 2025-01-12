@@ -1,6 +1,7 @@
 import pandas as pd
 import streamlit as st
 import matchmaker.trade as trade
+import matchmaker.data as data
 from streamlit_pills import pills
 
 def transaction_table_descriptor_czk():
@@ -44,40 +45,49 @@ def transaction_table_descriptor_native():
        }
 
    
-def add_trades_editor(trades, selected_trade=None, callback=None):
-    with st.form(key='add_buy_form'):
+def add_trades_editor(state : data.State, selected_trade=None, key=None, callback=None, target_accounts=None):
+    key = key if key is not None else 'add_trade_form'
+    with st.form(key=key):
         st.caption('Zde můžete přidat chybějící nákup k prodeji')
         # Create a dataframe representing the new trade
-        def create_dataframe(trades, symbol, date, quantity, price):
-            return pd.DataFrame({'Symbol': [symbol], 'Currency': trades[trades['Symbol']==symbol]['Currency'].values[0], 'Date/Time': [pd.to_datetime(date)], 'Quantity': [quantity], 'T. Price': [price], 'Action': ['Open'], 'Type': ['Long'],
-                                   'Proceeds': [-quantity*price], 'Comm/Fee': [0], 'Basis': [0], 'Realized P/L': [0], 'MTM P/L': [0]})
+        def create_dataframe(trades, symbol, date, quantity, price, target):
+            return pd.DataFrame({'Symbol': [symbol], 'Currency': trades[trades['Symbol']==symbol]['Currency'].values[0], 'Date/Time': [pd.to_datetime(date)], 'Quantity': [quantity], 
+                                 'T. Price': [price], 'C. Price': [price], 'Action': ['Open'], 'Type': ['Long'],
+                                 'Proceeds': [-quantity*price], 'Target': [target], 'Comm/Fee': [0], 'Basis': [0], 'Realized P/L': [0], 'MTM P/L': [0]})
         # Default action will add the trades to global trades
         def add_buy_callback(df, trades):
             trades = trade.add_new_trades(df, trades)
             st.session_state.update(trades=trades)
         if callback is None:
-            callback = lambda df: add_buy_callback(df, trades)
+            callback = lambda df: add_buy_callback(df, state.trades)
         
         # This will be the pre-filled trade 
 
         if selected_trade is None:
-            selected_trade = trades.iloc[0]
+            selected_trade = state.trades.iloc[0]
         
         # Design the form
-        symbolcol, datecol, quantitycol, pricecol, buttoncol, spacer_ = st.columns([1, 1, 1, 1, 1, 3])
+        if target_accounts is None:
+            symbolcol, datecol, quantitycol, pricecol, buttoncol, spacer_ = st.columns([1, 1, 1, 1, 2, 2])
+        else:
+            symbolcol, datecol, quantitycol, pricecol, accountcol, buttoncol, spacer_ = st.columns([1, 1, 1, 1, 1, 1, 1])
+
         with symbolcol:
-            symbols = trades['Symbol'].unique()
-            st.selectbox('Symbol', symbols, index=symbols.tolist().index(selected_trade['Symbol']), key='new_symbol')
+            symbols = state.trades['Symbol'].unique()
+            st.selectbox('Symbol', symbols, index=symbols.tolist().index(selected_trade['Symbol']), key=key+'_new_symbol')
         with datecol:
-            st.date_input('Datum nákupu', value=selected_trade['Date/Time'], max_value=trades['Date/Time'].max(), key='new_date')
+            st.date_input('Datum nákupu', value=selected_trade['Date/Time'], max_value=state.trades['Date/Time'].max(), key=key+'_new_date')
         with quantitycol:
-            st.number_input('Počet kusů', value=abs(selected_trade['Accumulated Quantity']), step=1.0, key='new_quantity')
+            st.number_input('Počet kusů', value=abs(selected_trade['Accumulated Quantity']), step=1.0, key=key+'_new_quantity')
         with pricecol:
-            st.number_input('Cena za kus', min_value=0.0, value=selected_trade['T. Price'], step=0.01, key='new_price')
+            st.number_input('Cena za kus', min_value=0.0, value=selected_trade['T. Price'], step=0.01, key=key+'_new_price')
+        if target_accounts is not None:
+            with accountcol:
+                st.selectbox('Účet', target_accounts, index=0, key=key+'_account')
         with buttoncol:
             st.container(height=12, border=False)
-            st.form_submit_button('Přidat transakci', on_click=lambda: callback(create_dataframe(trades, st.session_state.get('new_symbol'), st.session_state.get('new_date'), 
-                                                                                                 st.session_state.get('new_quantity'), st.session_state.get('new_price'))))
+            st.form_submit_button('Přidat transakci', on_click=lambda: callback(create_dataframe(state.trades, st.session_state.get(key+'_new_symbol'), st.session_state.get(key+'_new_date'), 
+                                                                                                 st.session_state.get(key+'_new_quantity'), st.session_state.get(key+'_new_price'), st.session_state.get(key+'_account'))))
             
 def add_years_filter(trades, show_all=True, title='Vyberte si rok'):
     years = sorted(trades['Year'].unique())
