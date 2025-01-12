@@ -48,10 +48,11 @@ class State:
             self.symbols = pd.DataFrame(all_symbols, columns=['Symbol'])
             self.symbols.set_index('Symbol', inplace=True)
             self.symbols['Ticker'] = self.symbols.index
+            self.symbols['Date'] = pd.NaT
             added_trades = self.trades
 
         if len(added_trades) > 0:
-            added_trades = trade.adjust_for_splits(added_trades, self.actions)
+            trade.adjust_for_splits(added_trades, self.actions)
             # Create a map of symbols that could be renamed (but we don't know for now)
             self._apply_renames()
             self.trades = trade.compute_accumulated_positions(self.trades, self.symbols)
