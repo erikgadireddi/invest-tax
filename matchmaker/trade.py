@@ -1,7 +1,7 @@
 import numpy as np
 import pandas as pd
 import streamlit as st
-import matchmaker.data as data
+from matchmaker import hash
 
 # Ensure all columns are in non-string format
 def convert_trade_columns(df):
@@ -44,7 +44,7 @@ def normalize_trades(df):
     df['Category'] = 'Trades'
     df = df[['Category'] + [col for col in df.columns if col != 'Category']]
     # Set up the hash column as index
-    df['Hash'] = df.apply(data.hash_row, axis=1)
+    df['Hash'] = df.apply(hash.hash_row, axis=1)
     df.set_index('Hash', inplace=True)
     # st.write('Imported', len(df), 'rows')
     return df
@@ -54,6 +54,8 @@ def normalize_trades(df):
 def merge_trades(existing, new):
     if existing is None:
         return new
+    if len(new) == 0:
+        return existing
     merged = pd.concat([existing, new])
     return merged[~merged.index.duplicated(keep='first')]
 
