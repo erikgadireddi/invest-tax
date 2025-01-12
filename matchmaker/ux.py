@@ -56,8 +56,9 @@ def add_trades_editor(state : data.State, selected_trade=None, key=None, callbac
                                  'Proceeds': [-quantity*price], 'Target': [target], 'Comm/Fee': [0], 'Basis': [0], 'Realized P/L': [0], 'MTM P/L': [0]})
         # Default action will add the trades to global trades
         def add_buy_callback(df, trades):
-            trades = trade.add_new_trades(df, trades)
-            st.session_state.update(trades=trades)
+            trades = state.add_manual_trades(trades)
+            state.recompute_positions()
+            state.save_session()
         if callback is None:
             callback = lambda df: add_buy_callback(df, state.trades)
         

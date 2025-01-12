@@ -49,11 +49,6 @@ def normalize_trades(df):
     # st.write('Imported', len(df), 'rows')
     return df
 
-# Add newly created trades to existing trades, making necessary recomputations
-def add_new_trades(new_trades, trades):
-    trades = pd.concat([trades, normalize_trades(new_trades)])
-    return process_after_import(trades)
-
 # Merge two sets of processed trades together
 @st.cache_data()
 def merge_trades(existing, new):
@@ -61,13 +56,6 @@ def merge_trades(existing, new):
         return new
     merged = pd.concat([existing, new])
     return merged[~merged.index.duplicated(keep='first')]
-
-# Recompute dependent columns after importing new trades
-@st.cache_data()
-def process_after_import(trades, actions=None):
-    trades = adjust_for_splits(trades, actions)
-    trades = _populate_extra_trade_columns(trades)
-    return trades
 
 # Add split data column to trades by consulting split actions
 def add_split_data(target, split_actions):
@@ -85,19 +73,13 @@ def add_split_data(target, split_actions):
         split_actions.drop(columns=['Cumulative Ratio'], inplace=True)
     return target
 
-# Add or refresh dynamically computed columns
-@st.cache_data()
-def _populate_extra_trade_columns(trades):
-    trades = compute_accumulated_positions(trades)
-    return trades
-
 # Compute accumulated positions for each symbol by simulating all trades
 @st.cache_data()
 def compute_accumulated_positions(trades, symbols=None):
     trades.drop(columns=['Ticker'], errors='ignore', inplace=True)
     trades = trades.reset_index().rename(columns={'index': 'Hash'})
     if symbols is not None:
-        trades = trades.merge(symbols[['Symbol', 'Ticker']], on='Symbol', how='left').set_index('Hash')
+        trades = trades.merge(symbols[['Ticker']], left_on='Symbol', right_index=True, how='left').set_index('Hash')
     else:
         trades['Ticker'] = trades['Symbol']
     trades.sort_values(by=['Date/Time'], inplace=True)

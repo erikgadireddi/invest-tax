@@ -45,24 +45,39 @@ class State:
         st.session_state.update(positions=self.positions)
         st.session_state.update(symbols=self.symbols)
 
-    def recompute_positions(self):
-        if len(self.trades) > 0:
-            self.trades = trade.adjust_for_splits(self.trades, self.actions)
-            # Create a map of symbols that could be renamed (but we don't know for now)
+    def recompute_positions(self, added_trades = None):
+        if added_trades is not None:
+            updated_tickers = added_trades['Ticker'].unique()
+            new_symbols = pd.DataFrame(added_trades['Symbol'].unique(), columns=['Symbol'])
+            new_symbols.set_index('Symbol', inplace=True)
+            new_symbols['Ticker'] = new_symbols.index
+            self.symbols = pd.concat([self.symbols, new_symbols]).drop_duplicates()
+        else:
             all_symbols = pd.concat([self.trades['Symbol'], self.positions['Symbol']]).unique()
             self.symbols = pd.DataFrame(all_symbols, columns=['Symbol'])
-            self.symbols['Ticker'] = self.symbols['Symbol']
+            self.symbols.set_index('Symbol', inplace=True)
+            self.symbols['Ticker'] = self.symbols.index
+            added_trades = self.trades
+
+        if len(added_trades) > 0:
+            added_trades = trade.adjust_for_splits(added_trades, self.actions)
+            # Create a map of symbols that could be renamed (but we don't know for now)
             self.trades = trade.compute_accumulated_positions(self.trades, self.symbols)
             self.positions.drop(columns=['Ticker'], errors='ignore', inplace=True)
-            self.positions = self.positions.merge(self.symbols[['Symbol', 'Ticker']], on='Symbol', how='left')
+            self.positions = self.positions.merge(self.symbols[['Ticker']], left_on='Symbol', right_index=True, how='left')
             self.positions['Date/Time'] = pd.to_datetime(self.positions['Date']) + pd.Timedelta(seconds=86399) # Add 23:59:59 to the date
             self.positions = trade.add_split_data(self.positions, self.actions)
             mismatches, renames = position.check_open_position_mismatches(self.trades, self.positions)
             for index, row in renames.iterrows():
-                self.symbols.loc[self.symbols['Symbol'] == row['From'], ['Ticker', 'Date']] = [row['To'], row['Date']] # Use this in 5_positions instead of guesses
+                self.symbols.loc[self.symbols.index == row['From'], ['Ticker', 'Date']] = [row['To'], row['Date']] # Use this in 5_positions instead of guesses
             # Now we can adjust the trades for the renames
             if len(renames) > 0:
                 self.trades = trade.compute_accumulated_positions(self.trades, self.symbols)
                 self.positions.drop(columns=['Ticker'], inplace=True)
-                self.positions = self.positions.merge(self.symbols[['Symbol', 'Ticker']], on='Symbol', how='left')
+                self.positions = self.positions.merge(self.symbols[['Ticker']], left_on='Symbol', right_index=True, how='left')
             self.trades['Display Name'] = self.trades['Ticker'] + self.trades['Display Suffix'].fillna('')
+
+    def add_manual_trades(self, new_trades):
+        self.trades = pd.concat([self.trades, new_trades])
+        self.recompute_positions()
+        
