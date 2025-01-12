@@ -49,7 +49,7 @@ if state.trades is not None and not state.trades.empty:
         suspicious_positions = trade.positions_with_missing_transactions(shown_trades)
         if len(suspicious_positions) > 0:
             with st.container(border=False):
-                st.error('Historie obsahuje long transakce vedoucí k negativním pozicím. Je možné, že nebyly nahrány všechny obchody či korporátní akce. Zkontrolujte, prosím, zdrojová data a případně doplňte chybějící transakce.')
+                st.error('Historie obsahuje transakce, kterým nesedí výsledné pozice. Je možné, že nebyly nahrány všechny obchody či korporátní akce. Zkontrolujte, prosím, zdrojová data a případně doplňte chybějící transakce.')
                 table_descriptor = ux.transaction_table_descriptor_czk()
                 st.dataframe(suspicious_positions, hide_index=True, column_config=table_descriptor['column_config'], column_order=table_descriptor['column_order'])
                 ux.add_trades_editor(state, suspicious_positions.iloc[0], 'suspicious_positions')

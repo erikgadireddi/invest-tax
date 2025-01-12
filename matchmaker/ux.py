@@ -51,25 +51,13 @@ def add_trades_editor(state : data.State, selected_trade, key=None, callback=Non
         st.caption('Zde můžete přidat chybějící nákup k prodeji')
         # Create a dataframe representing the new trade
         def create_dataframe(trades, symbol, date, quantity, price, target):
-            new_trade = pd.DataFrame([selected_trade], columns=[['Category', 'Symbol', 'Currency', 'Date/Time', 'Quantity', 'T. Price', 'Proceeds', 'Target', 'Action', 'Type', 'Comm/Fee', 'Basis', 'Realized P/L', 'MTM P/L']])
-            new_trade['Category'] = 'Trades'
-            new_trade['Symbol'] = symbol
-            new_trade['Currency'] = trades[trades['Symbol']==symbol]['Currency'].values[0] # Get it from symbols once it's possible to create new tickers
-            new_trade['Date/Time'] = pd.to_datetime(date)
-            new_trade['Quantity'] = quantity
-            new_trade['T. Price'] = price
-            new_trade['Proceeds'] = -quantity * price
-            new_trade['Target'] = target
-            new_trade['Action'] = 'Open'
-            new_trade['Type'] = 'Long'
-            new_trade['Comm/Fee'] = 0
-            new_trade['Basis'] = 0
-            new_trade['Realized P/L'] = 0
-            new_trade['MTM P/L'] = 0
-            return new_trade
+            return pd.DataFrame({'Symbol': [symbol], 'Currency': [selected_trade['Currency']], 'Date/Time': [pd.to_datetime(date)], 'Quantity': [quantity], 
+                        'T. Price': [price], 'C. Price': [price], 'Action': ['Open'], 'Type': ['Long'], 'Account': [selected_trade['Account']],
+                        'Proceeds': [-quantity*price], 'Target': [target], 'Comm/Fee': [0], 'Basis': [0], 'Realized P/L': [0], 'MTM P/L': [0]})
         
         # Default action will add the trades to global trades
         def add_buy_callback(df):
+            df = trade.normalize_trades(df)
             state.add_manual_trades(df)
             state.save_session()
         if callback is None:
