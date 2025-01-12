@@ -62,22 +62,33 @@ class State:
         if len(added_trades) > 0:
             added_trades = trade.adjust_for_splits(added_trades, self.actions)
             # Create a map of symbols that could be renamed (but we don't know for now)
+            self._apply_renames()
             self.trades = trade.compute_accumulated_positions(self.trades, self.symbols)
-            self.positions.drop(columns=['Ticker'], errors='ignore', inplace=True)
-            self.positions = self.positions.merge(self.symbols[['Ticker']], left_on='Symbol', right_index=True, how='left')
             self.positions['Date/Time'] = pd.to_datetime(self.positions['Date']) + pd.Timedelta(seconds=86399) # Add 23:59:59 to the date
             self.positions = trade.add_split_data(self.positions, self.actions)
-            mismatches, renames = position.check_open_position_mismatches(self.trades, self.positions)
-            for index, row in renames.iterrows():
-                self.symbols.loc[self.symbols.index == row['From'], ['Ticker', 'Date']] = [row['To'], row['Date']] # Use this in 5_positions instead of guesses
-            # Now we can adjust the trades for the renames
-            if len(renames) > 0:
-                self.trades = trade.compute_accumulated_positions(self.trades, self.symbols)
-                self.positions.drop(columns=['Ticker'], inplace=True)
-                self.positions = self.positions.merge(self.symbols[['Ticker']], left_on='Symbol', right_index=True, how='left')
+            
+            self.detect_and_apply_renames()
             self.trades['Display Name'] = self.trades['Ticker'] + self.trades['Display Suffix'].fillna('')
 
     def add_manual_trades(self, new_trades):
         self.trades = pd.concat([self.trades, new_trades])
         self.recompute_positions()
-        
+
+    # Apply ticker renames by consulting the symbol rename table        
+    def _apply_renames(self):
+        # Rename the symbols in trades 
+        self.trades.drop(columns=['Ticker'], errors='ignore', inplace=True)
+        self.trades = self.trades.reset_index().rename(columns={'index': 'Hash'})
+        self.trades = self.trades.merge(self.symbols[['Ticker']], left_on='Symbol', right_index=True, how='left').set_index('Hash')
+        # Rename the symbols in positions
+        self.positions.drop(columns=['Ticker'], errors='ignore', inplace=True)
+        self.positions = self.positions.merge(self.symbols[['Ticker']], left_on='Symbol', right_index=True, how='left')
+
+    def detect_and_apply_renames(self):
+        mismatches, renames = position.check_open_position_mismatches(self.trades, self.positions)
+        for index, row in renames.iterrows():
+            self.symbols.loc[self.symbols.index == row['From'], ['Ticker', 'Date']] = [row['To'], row['Date']] 
+        # Now we can adjust the trades for the renames
+        if len(renames) > 0:
+            self._apply_renames()
+            self.trades = trade.compute_accumulated_positions(self.trades, self.symbols)

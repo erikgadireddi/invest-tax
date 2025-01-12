@@ -75,13 +75,7 @@ def add_split_data(target, split_actions):
 
 # Compute accumulated positions for each symbol by simulating all trades
 @st.cache_data()
-def compute_accumulated_positions(trades, symbols=None):
-    trades.drop(columns=['Ticker'], errors='ignore', inplace=True)
-    trades = trades.reset_index().rename(columns={'index': 'Hash'})
-    if symbols is not None:
-        trades = trades.merge(symbols[['Ticker']], left_on='Symbol', right_index=True, how='left').set_index('Hash')
-    else:
-        trades['Ticker'] = trades['Symbol']
+def compute_accumulated_positions(trades, symbols):
     trades.sort_values(by=['Date/Time'], inplace=True)
     trades['Accumulated Quantity'] = trades.groupby(['Ticker', 'Display Suffix'])['Quantity'].cumsum().astype(np.float64)
     # Now also compute accumulated quantity per account'
