@@ -45,22 +45,35 @@ def transaction_table_descriptor_native():
        }
 
    
-def add_trades_editor(state : data.State, selected_trade=None, key=None, callback=None, target_accounts=None):
+def add_trades_editor(state : data.State, selected_trade, key=None, callback=None, target_accounts=None):
     key = key if key is not None else 'add_trade_form'
     with st.form(key=key):
         st.caption('Zde můžete přidat chybějící nákup k prodeji')
         # Create a dataframe representing the new trade
         def create_dataframe(trades, symbol, date, quantity, price, target):
-            return pd.DataFrame({'Symbol': [symbol], 'Currency': trades[trades['Symbol']==symbol]['Currency'].values[0], 'Date/Time': [pd.to_datetime(date)], 'Quantity': [quantity], 
-                                 'T. Price': [price], 'C. Price': [price], 'Action': ['Open'], 'Type': ['Long'],
-                                 'Proceeds': [-quantity*price], 'Target': [target], 'Comm/Fee': [0], 'Basis': [0], 'Realized P/L': [0], 'MTM P/L': [0]})
+            new_trade = pd.DataFrame([selected_trade], columns=[['Category', 'Symbol', 'Currency', 'Date/Time', 'Quantity', 'T. Price', 'Proceeds', 'Target', 'Action', 'Type', 'Comm/Fee', 'Basis', 'Realized P/L', 'MTM P/L']])
+            new_trade['Category'] = 'Trades'
+            new_trade['Symbol'] = symbol
+            new_trade['Currency'] = trades[trades['Symbol']==symbol]['Currency'].values[0] # Get it from symbols once it's possible to create new tickers
+            new_trade['Date/Time'] = pd.to_datetime(date)
+            new_trade['Quantity'] = quantity
+            new_trade['T. Price'] = price
+            new_trade['Proceeds'] = -quantity * price
+            new_trade['Target'] = target
+            new_trade['Action'] = 'Open'
+            new_trade['Type'] = 'Long'
+            new_trade['Comm/Fee'] = 0
+            new_trade['Basis'] = 0
+            new_trade['Realized P/L'] = 0
+            new_trade['MTM P/L'] = 0
+            return new_trade
+        
         # Default action will add the trades to global trades
-        def add_buy_callback(df, trades):
-            trades = state.add_manual_trades(trades)
-            state.recompute_positions()
+        def add_buy_callback(df):
+            state.add_manual_trades(df)
             state.save_session()
         if callback is None:
-            callback = lambda df: add_buy_callback(df, state.trades)
+            callback = lambda df: add_buy_callback(df)
         
         # This will be the pre-filled trade 
 
