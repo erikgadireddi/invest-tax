@@ -45,13 +45,14 @@ def transaction_table_descriptor_native():
        }
 
    
-def add_trades_editor(state : data.State, selected_trade, key=None, callback=None, target_accounts=None):
+def add_trades_editor(state : data.State, selected_trade, key=None, callback=None, symbols=None, target_accounts=None):
     key = key if key is not None else 'add_trade_form'
     with st.form(key=key):
         st.caption('Zde můžete přidat chybějící nákup k prodeji')
         # Create a dataframe representing the new trade
         def create_dataframe(trades, symbol, date, quantity, price, target):
-            return pd.DataFrame({'Symbol': [symbol], 'Currency': [selected_trade['Currency']], 'Date/Time': [pd.to_datetime(date)], 'Quantity': [quantity], 
+            currency = state.symbols[state.symbols['Ticker'] == symbol]['Currency'].values[0]
+            return pd.DataFrame({'Symbol': [symbol], 'Currency': currency, 'Date/Time': [pd.to_datetime(date)], 'Quantity': [quantity], 
                         'T. Price': [price], 'C. Price': [price], 'Action': ['Open'], 'Type': ['Long'], 'Account': [selected_trade['Account']],
                         'Proceeds': [-quantity*price], 'Target': [target], 'Comm/Fee': [0], 'Basis': [0], 'Realized P/L': [0], 'MTM P/L': [0]})
         
@@ -72,10 +73,14 @@ def add_trades_editor(state : data.State, selected_trade, key=None, callback=Non
         if target_accounts is None:
             symbolcol, datecol, quantitycol, pricecol, buttoncol, spacer_ = st.columns([1, 1, 1, 1, 2, 2])
         else:
+            target_accounts = target_accounts.unique()
             symbolcol, datecol, quantitycol, pricecol, accountcol, buttoncol, spacer_ = st.columns([1, 1, 1, 1, 1, 1, 1])
 
         with symbolcol:
-            symbols = state.trades['Symbol'].unique()
+            if symbols is None:
+                symbols = state.trades['Symbol'].unique()
+            else:
+                symbols = symbols.unique()
             st.selectbox('Symbol', symbols, index=symbols.tolist().index(selected_trade['Symbol']), key=key+'_new_symbol')
         with datecol:
             st.date_input('Datum nákupu', value=selected_trade['Date/Time'], max_value=state.trades['Date/Time'].max(), key=key+'_new_date')

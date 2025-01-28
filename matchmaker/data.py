@@ -49,6 +49,7 @@ class State:
             self.symbols.set_index('Symbol', inplace=True)
             self.symbols['Ticker'] = self.symbols.index
             self.symbols['Date'] = pd.NaT
+            self.symbols['Currency'] = self.symbols.index.map(lambda symbol: self.trades[self.trades['Symbol'] == symbol]['Currency'].iloc[0] if not self.trades[self.trades['Symbol'] == symbol].empty else None)
             added_trades = self.trades
 
         if len(added_trades) > 0:

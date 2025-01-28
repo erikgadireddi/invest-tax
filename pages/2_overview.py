@@ -65,4 +65,4 @@ if state.trades is not None and not state.trades.empty:
             missing_incoming_history = missing_incoming_history.reset_index()
             matching_trade = trades[(trades['Display Name'] == missing_incoming_history.iloc[0]['Display Name']) & 
                                      (trades['Target'] == missing_incoming_history.iloc[0]['Target'])]
-            ux.add_trades_editor(state, matching_trade.iloc[0], 'incoming_history', None, missing_incoming_history['Target'])
+            ux.add_trades_editor(state, matching_trade.iloc[0], 'incoming_history', None, missing_incoming_history['Display Name'], missing_incoming_history['Target'])

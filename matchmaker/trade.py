@@ -113,7 +113,6 @@ def transfers_with_missing_transactions(trades):
     return pd.DataFrame()
 
 # Adjust quantities and trade prices for splits
-@st.cache_data()
 def adjust_for_splits(trades, split_actions):
     if 'Split Ratio' not in trades.columns:
         trades['Split Ratio'] = np.nan
