@@ -78,7 +78,7 @@ def add_split_data(target: pd.DataFrame, split_actions: pd.DataFrame) -> pd.Data
 @st.cache_data()
 def compute_accumulated_positions(trades: pd.DataFrame) -> pd.DataFrame:
     """ Compute accumulated positions for each symbol by simulating all trades. Transfers are now excluded from the computation. """
-    # trades = trades[trades['Action'] != 'Transfer']
+    trades = trades[trades['Action'] != 'Transfer']
     trades.sort_values(by=['Date/Time'], inplace=True)
     trades['Accumulated Quantity'] = trades.groupby(['Ticker', 'Display Suffix'])['Quantity'].cumsum().astype(np.float64)
     # Now also compute accumulated quantity per account

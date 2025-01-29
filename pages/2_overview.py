@@ -50,9 +50,21 @@ if state.trades is not None and not state.trades.empty:
         if len(suspicious_positions) > 0:
             with st.container(border=False):
                 st.error('Historie obsahuje transakce, kterým nesedí výsledné pozice. Je možné, že nebyly nahrány všechny obchody či korporátní akce. Zkontrolujte, prosím, zdrojová data a případně doplňte chybějící transakce.')
+                symbols = sorted(suspicious_positions['Symbol'].unique())
+                symbol = pills('Vyberte symbol pro doplnění', options=symbols)
+                shown_mismatches = suspicious_positions[suspicious_positions['Symbol'] == symbol]
                 table_descriptor = ux.transaction_table_descriptor_czk()
-                st.dataframe(suspicious_positions, hide_index=True, column_config=table_descriptor['column_config'], column_order=table_descriptor['column_order'])
-                ux.add_trades_editor(state, suspicious_positions.iloc[0], 'suspicious_positions')
+                st.dataframe(shown_mismatches, hide_index=True, column_config=table_descriptor['column_config'], column_order=table_descriptor['column_order'])
+                max_negative = -shown_mismatches['Accumulated Quantity'].min()
+                max_positive = shown_mismatches['Accumulated Quantity'].max()
+                suggested_row = shown_mismatches.iloc[0].copy()
+                if max_positive > 0:
+                    st.caption(f'Pro symbol {symbol} chybí short prodeje **:green[{max_positive}]** pozic')
+                    suggested_row['Accumulated Quantity'] = max_positive
+                if max_negative > 0:
+                    st.caption(f'Pro symbol {symbol} chybí nákupy **:red[{max_negative}]** pozic')
+                    suggested_row['Accumulated Quantity'] = max_negative
+                ux.add_trades_editor(state, suggested_row, 'suspicious_positions')
 
     missing_incoming_history, missing_outgoing_history = trade.transfers_with_missing_transactions(shown_trades)
     if (len(missing_incoming_history) > 0):
