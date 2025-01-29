@@ -3,8 +3,8 @@ import pandas as pd
 import streamlit as st
 from matchmaker import hash
 
-# Ensure all columns are in non-string format
-def convert_trade_columns(df):
+def convert_trade_columns(df: pd.DataFrame) -> pd.DataFrame:
+    """ Convert columns of the trade DataFrame to appropriate data types. """
     df['Date/Time'] = pd.to_datetime(df['Date/Time'])
     df['Quantity'] = pd.to_numeric(df['Quantity'], errors='coerce')
     df['Proceeds'] = pd.to_numeric(df['Proceeds'], errors='coerce').astype(np.float64)
@@ -33,8 +33,8 @@ def convert_trade_columns(df):
     df['Type'] = df['Type'].fillna(df.apply(get_type, axis=1))
     return df
 
-# Process trades from raw DataFrame
-def normalize_trades(df):
+def normalize_trades(df: pd.DataFrame) -> pd.DataFrame:
+    """ Normalize the trade DataFrame by converting columns, then adding derived columns and hashing the result as its index (used to determine import uniqueness). """
     if df.empty:
         return df
     df = convert_trade_columns(df)
@@ -49,9 +49,9 @@ def normalize_trades(df):
     # st.write('Imported', len(df), 'rows')
     return df
 
-# Merge two sets of processed trades together
 @st.cache_data()
-def merge_trades(existing, new):
+def merge_trades(existing: pd.DataFrame, new: pd.DataFrame) -> pd.DataFrame:
+    """ Merge two already processed DataFrames of trades, removing duplicates. """
     if existing is None:
         return new
     if len(new) == 0:
@@ -59,8 +59,8 @@ def merge_trades(existing, new):
     merged = pd.concat([existing, new])
     return merged[~merged.index.duplicated(keep='first')]
 
-# Add split data column to trades by consulting split actions
-def add_split_data(target, split_actions):
+def add_split_data(target: pd.DataFrame, split_actions: pd.DataFrame) -> pd.DataFrame:
+    """ Compute cumulative split ratio column based on split actions."""
     target['Split Ratio'] = 1.0
     if split_actions is None or split_actions.empty:
         return target
@@ -75,23 +75,35 @@ def add_split_data(target, split_actions):
         split_actions.drop(columns=['Cumulative Ratio'], inplace=True)
     return target
 
-# Compute accumulated positions for each symbol by simulating all trades
 @st.cache_data()
-def compute_accumulated_positions(trades, symbols):
+def compute_accumulated_positions(trades: pd.DataFrame) -> pd.DataFrame:
+    """ Compute accumulated positions for each symbol by simulating all trades. Transfers are now excluded from the computation. """
+    # trades = trades[trades['Action'] != 'Transfer']
     trades.sort_values(by=['Date/Time'], inplace=True)
     trades['Accumulated Quantity'] = trades.groupby(['Ticker', 'Display Suffix'])['Quantity'].cumsum().astype(np.float64)
-    # Now also compute accumulated quantity per account'
+    # Now also compute accumulated quantity per account
     trades['Account Accumulated Quantity'] = trades.groupby(['Account', 'Ticker', 'Display Suffix'])['Quantity'].cumsum().astype(np.float64)
     return trades
 
-def per_account_transfers_with_missing_transactions(trades):
-    return trades[(trades['Action'] == 'Transfer') & (trades['Type'] == 'Out') & (trades['Quantity'] < 0) & (trades['Account Accumulated Quantity'] < 0)]
-
-def positions_with_missing_transactions(trades):
+def positions_with_missing_transactions(trades: pd.DataFrame) -> pd.DataFrame:
+    """ 
+    Identify positions that should be closing positions entirely but our accumulated quantity is not zero. 
+    This implies that we're missing some of the opening transactions.
+    """
     return trades[((trades['Accumulated Quantity'] < 0) & (trades['Type'] == 'Long') & (trades['Action'] == 'Close') | 
                   (trades['Accumulated Quantity'] > 0) & (trades['Type'] == 'Short') & (trades['Action'] == 'Close'))]
-    
-def transfers_with_missing_transactions(trades):
+
+def per_account_transfers_with_missing_transactions(trades: pd.DataFrame) -> pd.DataFrame:
+    """ Identify transfers that do not have corresponding accumulated quantity in the source account """
+    return trades[(trades['Action'] == 'Transfer') & (trades['Type'] == 'Out') & (trades['Quantity'] < 0) & (trades['Account Accumulated Quantity'] < 0)]
+
+
+def transfers_with_missing_transactions(trades: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """  
+    Identify transfers that do not have a corresponding outgoing transfer in the account they are transferring from. 
+    This implies that the source account history was not completely imported and we don't know all the purchase prices.
+    Returns: unmatched incoming, unmatched outgoing
+    """
     transfers = trades[(trades['Action'] == 'Transfer') & (trades['Type'] != 'Spinoff')] 
     outgoing = transfers[transfers['Type'] == 'Out']
     if 'Target' in trades.columns:
@@ -113,7 +125,8 @@ def transfers_with_missing_transactions(trades):
     return pd.DataFrame()
 
 # Adjust quantities and trade prices for splits
-def adjust_for_splits(trades, split_actions):
+def adjust_for_splits(trades: pd.DataFrame, split_actions: pd.DataFrame) -> pd.DataFrame:
+    """ Adjust trade quantities and prices for already detected stock splits. """
     if 'Split Ratio' not in trades.columns:
         trades['Split Ratio'] = np.nan
     if split_actions is not None and not split_actions.empty:

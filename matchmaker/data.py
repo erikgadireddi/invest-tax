@@ -56,7 +56,7 @@ class State:
             trade.adjust_for_splits(added_trades, self.actions)
             # Create a map of symbols that could be renamed (but we don't know for now)
             self._apply_renames()
-            self.trades = trade.compute_accumulated_positions(self.trades, self.symbols)
+            self.trades = trade.compute_accumulated_positions(self.trades)
             self.positions['Date/Time'] = pd.to_datetime(self.positions['Date']) + pd.Timedelta(seconds=86399) # Add 23:59:59 to the date
             self.positions = trade.add_split_data(self.positions, self.actions)
             
@@ -84,4 +84,4 @@ class State:
         # Now we can adjust the trades for the renames
         if len(renames) > 0:
             self._apply_renames()
-            self.trades = trade.compute_accumulated_positions(self.trades, self.symbols)
+            self.trades = trade.compute_accumulated_positions(self.trades)

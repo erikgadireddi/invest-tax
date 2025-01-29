@@ -10,6 +10,7 @@ from menu import menu
 import copy
 
 def page():
+    """ Streamlit page for tax overview and pairing trades. """
     st.set_page_config(page_title='Daňový přehled', layout='wide')
     menu()
     data.load_settings()

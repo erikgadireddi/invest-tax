@@ -1,7 +1,12 @@
-
 import pandas as pd
+import numpy as np
+import streamlit as st
+from typing import Optional, Tuple
 
-def convert_position_history_columns(df):
+def convert_position_history_columns(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Convert columns of the position history DataFrame to appropriate types.
+    """
     df['Prior Date'] = pd.to_datetime(df['Prior Date'])
     df['Date'] = pd.to_datetime(df['Current Date'])
     df['Prior Quantity'] = pd.to_numeric(df['Prior Quantity'], errors='coerce')
@@ -17,23 +22,30 @@ def convert_position_history_columns(df):
     df = df[['Category'] + [col for col in df.columns if col != 'Category']]
     return df
 
-# Compute open positions per symbol at a given time
-def compute_open_positions(trades, time=pd.Timestamp.now()):
+def compute_open_positions(trades: pd.DataFrame, time: pd.Timestamp = pd.Timestamp.now()) -> pd.DataFrame:
+    """
+    Compute open positions per symbol at a given time.
+    """
     trades = trades[trades['Date/Time'] <= time]
     positions = trades.groupby('Ticker')[['Accumulated Quantity', 'Date/Time', 'Split Ratio']].last().reset_index()
     return positions[positions['Accumulated Quantity'] != 0]
 
-# Compute open positions per symbol at a given time
-def compute_open_positions_per_account(trades, time=pd.Timestamp.now(), account=None):
+def compute_open_positions_per_account(trades: pd.DataFrame, time: pd.Timestamp = pd.Timestamp.now(), account: Optional[str] = None) -> pd.DataFrame:
+    """
+    Compute open positions per symbol at a given time for a specific account.
+    """
     trades = trades[trades['Date/Time'] <= time]
     if account is not None:
         trades = trades[trades['Account'] == account]
     positions = trades.groupby('Ticker')[['Account', 'Account Accumulated Quantity', 'Date/Time', 'Split Ratio']].last().reset_index()
     return positions[positions['Account Accumulated Quantity'] != 0]
 
-
-def check_open_position_mismatches(trades, positions, max_date=pd.Timestamp.now()):
-    # Walk through every snapshot of open positions and check if it matches what we can compute from our trades
+def check_open_position_mismatches(trades: pd.DataFrame, positions: pd.DataFrame, max_date: pd.Timestamp = pd.Timestamp.now()) -> Tuple[pd.DataFrame, pd.DataFrame]:
+    """
+    Check for mismatches between computed open positions and position snapshots. Tries to guess symbol renames as those are not in the IBKR history.
+    Returns:
+        Tuple[pd.DataFrame, pd.DataFrame]: Misaligned positions, guessed renames
+    """
     time_points = positions[(positions['Quantity'] != 0) & (positions['Date'] <= max_date)].groupby(['Date', 'Account'])
     mismatches = pd.DataFrame(columns=['Ticker', 'Date'])
     for (time, account), snapshot in time_points:
@@ -46,10 +58,9 @@ def check_open_position_mismatches(trades, positions, max_date=pd.Timestamp.now(
         new_mismatches = merged[merged['Quantity Mismatch'] != 0]
         mismatches = pd.concat([mismatches, new_mismatches])
 
-    # Fill in the Date column from Date/Time in case it was NaT
-    if len(mismatches) == 0:
+    if mismatches.empty:
         return mismatches, pd.DataFrame()
-    
+
     mismatches.drop_duplicates(subset=['Ticker', 'Date'], inplace=True)
     mismatches.reset_index(drop=True, inplace=True)
     mismatches['Date'] = mismatches['Date/Time Positions'].fillna(mismatches['Date/Time Trades'])
