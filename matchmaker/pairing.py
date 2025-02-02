@@ -45,10 +45,11 @@ def pair_buy_sell(trades, pairs, strategy, from_year=None):
         pairs = pairs[pairs['Sell Time'].dt.year < from_year]
     
     trades = fill_trades_covered_quantity(trades, pairs)
+    print(trades)
     # trades.round(3).to_csv('paired.order.quantities.csv')
     per_symbol = trades.groupby('Display Name')
     if pairs is None:
-        pairs = pd.DataFrame(columns=['Buy Transaction', 'Sell Transaction', 'Display Name', 'Quantity', 'Buy Time', 'Buy Price', 'Sell Time', 'Sell Price', 'Buy Cost', 'Sell Proceeds', 'Revenue', 'Ratio', 'Type', 'Taxable'])
+        pairs = pd.DataFrame(columns=['Buy Transaction', 'Sell Transaction', 'Display Name', 'Quantity', 'Buy Time', 'Buy Price', 'Sell Time', 'Sell Price', 'Buy Cost', 'Sell Proceeds', 'Revenue', 'Ratio', 'Type', 'Taxable', 'Asset Category'])
     for symbol, group in per_symbol:
         # Find sell orders
         sells = group[group['Action'] == 'Close']

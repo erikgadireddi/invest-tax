@@ -42,7 +42,7 @@ if state.trades is not None and not state.trades.empty:
         held_position = shown_trades['Accumulated Quantity'].iloc[-1]
         if held_position != 0:
             st.markdown(f'**Držené pozice: :blue[{held_position:.0f}]**')
-        st.caption(f'Realizovaný profit dle brokera: :green[{profit:.0f}] {shown_trades["Currency"].iloc[0]}')
+        st.caption(f'Realizovaný profit dle brokera: :green[{profit:.2f}] {shown_trades["Currency"].iloc[0]}')
             
         suspicious_positions = shown_trades[((shown_trades['Accumulated Quantity'] < 0) & (shown_trades['Type'] == 'Long') & (shown_trades['Action'] == 'Close') | 
                                             (shown_trades['Accumulated Quantity'] > 0) & (shown_trades['Type'] == 'Short') & (shown_trades['Action'] == 'Close'))]

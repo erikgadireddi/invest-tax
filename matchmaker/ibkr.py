@@ -70,7 +70,7 @@ def import_trades(file):
     df['Option Name'] = df[df['Asset Category'] == 'Equity and Index Options']['Symbol']
     df['Display Suffix'] = ''
     df = convert_option_names(df)
-    df.drop(columns=['Trades', 'Header', 'DataDiscriminator', 'Asset Category',], inplace=True)
+    df.drop(columns=['Trades', 'Header', 'DataDiscriminator'], inplace=True)
     return normalize_trades(df)
 
 def import_corporate_actions(file):
@@ -78,7 +78,7 @@ def import_corporate_actions(file):
     if df.empty:
         df = pd.DataFrame(columns=['Corporate Actions', 'Header', 'Asset Category', 'Currency', 'Report Date', 'Date/Time', 'Description', 'Quantity', 'Proceeds', 'Value', 'Realized P/L', 'Action', 'Symbol', 'Ratio', 'Code', 'Target'])
     df = df[df['Asset Category'] == 'Stocks']
-    df.drop(columns=['Corporate Actions', 'Header', 'Asset Category'], inplace=True)
+    df.drop(columns=['Corporate Actions', 'Header'], inplace=True)
     
     def parse_action_text(text):
         action, symbol, ratio, target = parse_split_text(text)
@@ -140,7 +140,7 @@ def import_open_positions(file, date_from, date_to):
         df = pd.DataFrame(columns=['Mark-to-Market Performance Summary', 'Header', 'Asset Category', 'Symbol', 'Prior Quantity', 'Current Quantity', 'Prior Price', 'Current Price',
                                 'Mark-to-Market P/L Position','Mark-to-Market P/L Transaction','Mark-to-Market P/L Commissions','Mark-to-Market P/L Other','Mark-to-Market P/L Total','Code'])
     df = df[df['Asset Category'] == 'Stocks']
-    df.drop(columns=['Mark-to-Market Performance Summary', 'Header', 'Asset Category', 'Code'], inplace=True)
+    df.drop(columns=['Mark-to-Market Performance Summary', 'Header', 'Code'], inplace=True)
     df['Prior Date'] = date_from
     df['Current Date'] = date_to
     return position.convert_position_history_columns(df)
@@ -162,7 +162,7 @@ def import_transfers(file):
     df['T. Price'] = 0
     df['C. Price'] = 0
     df['Target'] = df['Xfer Account']
-    df.drop(columns=['Transfers', 'Header', 'Asset Category', 'Date', 'Type', 'Direction', 'Xfer Company', 'Xfer Account', 'Qty', 'Xfer Price', 'Market Value', 'Cash Amount', 'Code'], inplace=True)
+    df.drop(columns=['Transfers', 'Header','Date', 'Type', 'Direction', 'Xfer Company', 'Xfer Account', 'Qty', 'Xfer Price', 'Market Value', 'Cash Amount', 'Code'], inplace=True)
     return normalize_trades(df)
 
 def generate_transfers_from_actions(actions):

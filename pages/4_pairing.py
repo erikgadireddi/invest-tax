@@ -83,6 +83,7 @@ def page():
         pairs_in_czk = currency.add_czk_conversion_to_pairs(paired_trades, daily_rates, False)
     pairs_in_czk['Percent Return'] = pairs_in_czk['Ratio'] * 100
     filtered_pairs = pairs_in_czk[pairs_in_czk['Sell Time'].dt.year == show_year]
+    #print(filtered_pairs)
     trades_display = st.dataframe(filtered_pairs, hide_index=True, height=600, 
                                 column_order=('Display Name','Quantity','Buy Time','Buy Price','Sell Time','Sell Price','Currency','Buy Cost','Sell Proceeds','Revenue',
                                             'CZK Revenue','Percent Return','Type','Taxable','Buy CZK Rate','Sell CZK Rate', 'CZK Cost','CZK Proceeds'),
@@ -109,7 +110,15 @@ def page():
                                     })
     
     unpaired_sells = sells[(sells['Year'] == show_year) & (sells['Uncovered Quantity'] != 0)]
-    footer = f'Danitelný výdělek v CZK: :blue[{filtered_pairs[filtered_pairs["Taxable"] == 1]["CZK Revenue"].sum():,.0f}] CZK'
+    proceeds_sum = filtered_pairs[filtered_pairs["Taxable"] == 1]["CZK Proceeds"].sum()
+    taxable_sum = filtered_pairs[filtered_pairs["Taxable"] == 1]["CZK Revenue"].sum()
+    if proceeds_sum > 100000:
+        print(f"The proceeds_sum is: {proceeds_sum:.2f}")
+        footer = f'Danitelný výdělek v CZK: :blue[{taxable_sum:,.0f}] CZK'
+    else:
+        print(f"The proceeds_sum is: {proceeds_sum:.2f}")
+        footer = f'Výdělek v CZK: :blue[{taxable_sum:,.0f}] CZK se numusí danit, pokud jsou v formuláři všechny obchody fyzické osoby za tento rok.'
+    footer = f'Danitelný výdělek v CZK: :blue[{taxable_sum:,.0f}] CZK'
     untaxed_revenue = filtered_pairs[filtered_pairs['Taxable'] == 0]['CZK Revenue'].sum()
     if untaxed_revenue > 0:
         footer += f' | Osvobozený výdělek v CZK: :green[{untaxed_revenue:,.0f}] CZK'
