@@ -90,6 +90,7 @@ def main():
             # Merge open positions and drop duplicates
             state.positions = pd.concat([imported_positions, state.positions])
             state.positions.drop_duplicates(subset=['Symbol', 'Date'], inplace=True)
+            state.positions.reset_index(drop=True, inplace=True)
             loaded_count += len(imported_trades)
             import_state.write(f'Slučuji :blue[{len(imported_trades)}] obchodů...')
             state.trades = merge_trades(state.trades, imported_trades)
