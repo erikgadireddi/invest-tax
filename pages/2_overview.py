@@ -60,7 +60,7 @@ if state.trades is not None and not state.trades.empty:
                 suggested_row = shown_mismatches.iloc[0].copy()
                 if max_positive > 0:
                     st.caption(f'Pro symbol {symbol} chybí short prodeje **:green[{max_positive}]** pozic')
-                    suggested_row['Accumulated Quantity'] = max_positive
+                    suggested_row['Accumulated Quantity'] = -max_positive
                 if max_negative > 0:
                     st.caption(f'Pro symbol {symbol} chybí nákupy **:red[{max_negative}]** pozic')
                     suggested_row['Accumulated Quantity'] = max_negative

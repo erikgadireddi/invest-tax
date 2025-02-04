@@ -37,13 +37,35 @@ if state.trades is not None and not state.trades.empty:
         st.caption(f'Pro symbol {symbol} nebyly nalezeny žádné obchody.')
     else:
         table_descriptor = ux.transaction_table_descriptor_native()
-        trades_display = st.dataframe(shown_trades, hide_index=True, column_order=table_descriptor['column_order'], column_config=table_descriptor['column_config'])
+        trades_display = st.dataframe(shown_trades, hide_index=True, column_config=table_descriptor['column_config'], column_order=table_descriptor['column_order'])
         profit = shown_trades['Realized P/L'].sum()
         held_position = shown_trades['Accumulated Quantity'].iloc[-1]
         if held_position != 0:
             st.markdown(f'**Držené pozice: :blue[{held_position:.0f}]**')
         st.caption(f'Realizovaný profit dle brokera: :green[{profit:.0f}] {shown_trades["Currency"].iloc[0]}')
             
+        manual_trades = shown_trades[shown_trades['Manual'] == True]
+        if not manual_trades.empty:
+            st.caption('Manuálně přidané obchody, které můžete dále upravit:')
+            def edit_manual_trades():
+                st.session_state['changes_made'] = True
+            column_order = ('Display Name', 'Date/Time', 'Quantity', 'Currency', 'T. Price', 'Comm/Fee', 'Realized P/L', 'Account')
+            edited_trades = st.data_editor(manual_trades, hide_index=True, column_config=table_descriptor['column_config'], column_order=column_order, num_rows="fixed", disabled=("Display Name", "Currency"), on_change=edit_manual_trades)
+
+            if st.session_state.get('changes_made', False):
+                if st.button("Přepočítat změny"):
+                    # Merge edited trades back into the main DataFrame
+                    edited_trades['Orig. Quantity'] = edited_trades['Quantity']
+                    edited_trades['Orig. T. Price'] = edited_trades['T. Price']
+                    edited_trades['Split Ratio'] = 1.0
+                    state.trades.update(edited_trades)
+                    trades_to_drop = edited_trades[edited_trades['Quantity'] == 0].index
+                    state.trades.drop(trades_to_drop, inplace=True)
+                    state.recompute_positions()
+                    state.save_session()
+                    st.session_state['changes_made'] = False
+                    st.rerun()
+
         suspicious_positions = shown_trades[((shown_trades['Accumulated Quantity'] < 0) & (shown_trades['Type'] == 'Long') & (shown_trades['Action'] == 'Close') | 
                                             (shown_trades['Accumulated Quantity'] > 0) & (shown_trades['Type'] == 'Short') & (shown_trades['Action'] == 'Close'))]
         if len(suspicious_positions) > 0:

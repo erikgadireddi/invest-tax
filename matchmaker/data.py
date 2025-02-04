@@ -64,6 +64,7 @@ class State:
             self.trades['Display Name'] = self.trades['Ticker'] + self.trades['Display Suffix'].fillna('')
 
     def add_manual_trades(self, new_trades):
+        new_trades['Manual'] = True
         self.trades = pd.concat([self.trades, new_trades])
         self.recompute_positions()
 

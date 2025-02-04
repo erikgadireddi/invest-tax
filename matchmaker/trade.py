@@ -17,6 +17,8 @@ def convert_trade_columns(df: pd.DataFrame) -> pd.DataFrame:
     if 'Display Suffix' not in df.columns:
         df['Display Suffix'] = ''
     df['Display Suffix'] = df['Display Suffix'].fillna('').astype(str)
+    if 'Manual' not in df.columns:
+        df['Manual'] = False
     if 'Action' not in df.columns and 'Code' in df.columns:
        df['Action'] = df['Code'].apply(lambda x: 'Open' if ('O' in x or 'Ca' in x) else 'Close' if 'C' in x else 'Unknown')
     # If action is not Transfer, then Type is Long if we're opening a position, Short if closing
@@ -70,6 +72,7 @@ def add_split_data(target: pd.DataFrame, split_actions: pd.DataFrame) -> pd.Data
         #  and summing all ratio columns that have a date sooner than the row in trades    
         split_actions = split_actions.sort_values(by='Date/Time', ascending=True)
         split_actions['Cumulative Ratio'] = split_actions.groupby('Symbol')['Ratio'].cumprod()
+        # Warning: costly operation, need to optimize
         target['Split Ratio'] = 1 / target.apply(lambda row: split_actions[(split_actions['Symbol'] == row['Symbol']) & (split_actions['Date/Time'] > row['Date/Time'])]['Cumulative Ratio'].min(), axis=1)
         target['Split Ratio'].fillna(1.0, inplace=True)
         split_actions.drop(columns=['Cumulative Ratio'], inplace=True)
