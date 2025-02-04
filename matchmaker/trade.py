@@ -66,16 +66,28 @@ def add_split_data(target: pd.DataFrame, split_actions: pd.DataFrame) -> pd.Data
     target['Split Ratio'] = 1.0
     if split_actions is None or split_actions.empty:
         return target
+
     split_actions = split_actions[split_actions['Action'] == 'Split']
     if not split_actions.empty:
-        # Enhance trades with Split Ratio column by looking up same symbol in split_actions
-        #  and summing all ratio columns that have a date sooner than the row in trades    
+        # Sort split actions by date and compute cumulative ratio
         split_actions = split_actions.sort_values(by='Date/Time', ascending=True)
         split_actions['Cumulative Ratio'] = split_actions.groupby('Symbol')['Ratio'].cumprod()
-        # Warning: costly operation, need to optimize
-        target['Split Ratio'] = 1 / target.apply(lambda row: split_actions[(split_actions['Symbol'] == row['Symbol']) & (split_actions['Date/Time'] > row['Date/Time'])]['Cumulative Ratio'].min(), axis=1)
+
+        # Merge target with split_actions to align split ratios with trades. We'll have many-to-one mapping here, to be cleaned later.
+        merged = target.reset_index().merge(split_actions, on='Symbol', suffixes=('', '_split'), how='left')
+
+        # Filter out rows where the split action date is not greater than the trade date
+        filtered = merged[merged['Date/Time_split'] <= merged['Date/Time']]
+
+        # Create a binding that can be used to look up the correct split ratio (latest date) for each trade
+        max_date_split = filtered.groupby('Hash')['Date/Time_split'].idxmax()
+        
+        # Apply the lookup to find the cumulative ratio
+        target.loc[max_date_split.index, 'Split Ratio'] = filtered.loc[max_date_split, 'Cumulative Ratio'].values
+
+        # Fill NaN values with 1 (for trades with no applicable split actions)
         target['Split Ratio'].fillna(1.0, inplace=True)
-        split_actions.drop(columns=['Cumulative Ratio'], inplace=True)
+
     return target
 
 @st.cache_data()
