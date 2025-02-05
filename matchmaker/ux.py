@@ -48,7 +48,7 @@ def transaction_table_descriptor_native():
 def add_trades_editor(state : data.State, selected_trade, key=None, callback=None, symbols=None, target_accounts=None):
     key = key if key is not None else 'add_trade_form'
     with st.form(key=key):
-        st.caption('Zde můžete přidat chybějící nákup k prodeji')
+        st.caption('Zde můžete přidat chybějící nákup(y) k prodeji')
         # Create a dataframe representing the new trade
         def create_dataframe(trades, symbol, date, quantity, price, target):
             currency = state.symbols[state.symbols['Ticker'] == symbol]['Currency'].values[0]

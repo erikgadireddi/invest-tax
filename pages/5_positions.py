@@ -67,10 +67,10 @@ if state.trades is not None and not state.trades.empty:
     if not mismatches.empty:
         st.error('Nalezeny nesrovnalosti v otevřených pozicích. Bude třeba doplnit chybějící obchody.')
         table_descriptor = ux.transaction_table_descriptor_native()
-        column_order = ('Ticker', 'Account Accumulated Quantity', 'Quantity', 'Account', 'Date')
+        column_order = ('Date', 'Ticker', 'Account Accumulated Quantity', 'Quantity', 'Account', 'Date')
         table_descriptor['column_config']['Account Accumulated Quantity'] = st.column_config.NumberColumn("Počet dle transakcí", help="Spočítaná pozice ze všech nahraných transakcí", format="%f")
         table_descriptor['column_config']['Quantity'] = st.column_config.NumberColumn("Počet dle brokera", help="Pozice reportovaná brokerem v nahraném souboru", format="%f")
         table_descriptor['column_config']['Account'] = st.column_config.TextColumn("Účet u brokera", help="Název účtu, ke kterému se transakce vztahují. Každý účet má své vlastní pozice.")
-        table_descriptor['column_config']['Date'] = st.column_config.DateColumn("Poslední změna", help="Datum ke kterému broker spočítal pozice či byl proveden poslední obchod")
+        table_descriptor['column_config']['Date'] = st.column_config.DateColumn("Datum", help="Datum ke kterému broker spočítal pozice či byl proveden poslední obchod")
         column_config = table_descriptor['column_config']
         st.dataframe(mismatches, hide_index=True, column_order=column_order, column_config=column_config)

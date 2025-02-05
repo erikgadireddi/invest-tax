@@ -4,6 +4,7 @@ from streamlit_pills import pills
 import matchmaker.currency as currency
 import matchmaker.data as data 
 import matchmaker.ux as ux
+import matchmaker.position as position
 from menu import menu
 
 st.set_page_config(page_title='Doplnění obchodů', layout='wide')
@@ -69,7 +70,21 @@ if state.trades is not None and not state.trades.empty:
         suspicious_positions = shown_trades[((shown_trades['Accumulated Quantity'] < 0) & (shown_trades['Type'] == 'Long') & (shown_trades['Action'] == 'Close') | 
                                             (shown_trades['Accumulated Quantity'] > 0) & (shown_trades['Type'] == 'Short') & (shown_trades['Action'] == 'Close'))]
         if len(suspicious_positions) > 0:
-            st.caption('Historie obsahuje long transakce vedoucí k negativním pozicím. Je možné, že nebyly nahrány všechny obchody či korporátní akce. Zkontrolujte, prosím, zdrojová data a případně doplňte chybějící transakce.')
+            st.error('Historie obsahuje long transakce vedoucí k negativním pozicím. Je možné, že nebyly nahrány všechny obchody či korporátní akce. Zkontrolujte, prosím, zdrojová data a případně doplňte chybějící transakce.')
             table_descriptor = ux.transaction_table_descriptor_native()
             st.dataframe(suspicious_positions, hide_index=True, column_config=table_descriptor['column_config'], column_order=table_descriptor['column_order'])
             ux.add_trades_editor(state, suspicious_positions.iloc[0])
+
+        mismatches, _ = position.check_open_position_mismatches(shown_trades, state.positions)
+        mismatches = mismatches[mismatches['Ticker'] == symbol]
+        mismatches['Quantity'] = mismatches['Quantity'].fillna(0)
+        if not mismatches.empty:
+            st.caption('Toto jsou nalezené nesrovnalosti v otevřených pozicích, které mohou pomoci identifikovat data a množství chybějících obchodů.')
+            table_descriptor = ux.transaction_table_descriptor_native()
+            column_order = ('Date', 'Ticker', 'Account Accumulated Quantity', 'Quantity', 'Account', 'Date')
+            table_descriptor['column_config']['Account Accumulated Quantity'] = st.column_config.NumberColumn("Počet dle transakcí", help="Spočítaná pozice ze všech nahraných transakcí", format="%f")
+            table_descriptor['column_config']['Quantity'] = st.column_config.NumberColumn("Počet dle brokera", help="Pozice reportovaná brokerem v nahraném souboru", format="%f")
+            table_descriptor['column_config']['Account'] = st.column_config.TextColumn("Účet u brokera", help="Název účtu, ke kterému se transakce vztahují. Každý účet má své vlastní pozice.")
+            table_descriptor['column_config']['Date'] = st.column_config.DateColumn("Datum", help="Datum ke kterému broker spočítal pozice či byl proveden poslední obchod")
+            column_config = table_descriptor['column_config']
+            st.dataframe(mismatches, hide_index=True, column_order=column_order, column_config=column_config)
