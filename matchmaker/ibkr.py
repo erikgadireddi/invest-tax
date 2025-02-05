@@ -152,6 +152,7 @@ def import_transfers(file):
         df = pd.DataFrame(columns=['Transfers', 'Header', 'Asset Category', 'Currency', 'Symbol', 'Date', 'Type', 'Direction', 'Xfer Company', 'Xfer Account', 'Qty', 'Xfer Price', 'Market Value', 'Realized P/L', 'Cash Amount', 'Code'])
     df = df[df['Asset Category'] == 'Stocks']
     df['Date/Time'] = pd.to_datetime(df['Date'], format='%Y-%m-%d')
+    df['Year'] = df['Date/Time'].dt.year
     df['Action'] = 'Transfer'
     df['Quantity'] = pd.to_numeric(df['Qty'].astype(str).str.replace(',', ''), errors='coerce')
     df['Proceeds'] = pd.to_numeric(df['Market Value'].astype(str).str.replace(',', ''), errors='coerce')
