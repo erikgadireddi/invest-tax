@@ -34,9 +34,10 @@ def page():
     #  strategy: FIFO, LIFO, AverageCost, MaxLoss, MaxProfit
     #  use_yearly_rates: bool
     trades = state.trades[(state.trades['Action'] == 'Open') | (state.trades['Action'] == 'Close')] # Filter out transfers and other transactions
+    closing_trades = trades[trades['Action'] == 'Close']
     strategies = ['FIFO', 'LIFO', 'AverageCost', 'MaxLoss', 'MaxProfit']
-    st.session_state.update(year=ux.add_years_filter(trades, False, 'Rok pro párování'))
-    years = sorted(trades['Year'].unique())
+    st.session_state.update(year=ux.add_years_filter(closing_trades, False, 'Rok pro párování'))
+    years = sorted(closing_trades['Year'].unique())
     show_year = st.session_state.get('year')
     if show_year is None:
         show_year = years[-1]
