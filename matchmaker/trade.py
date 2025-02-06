@@ -27,6 +27,13 @@ def convert_trade_columns(df: pd.DataFrame) -> pd.DataFrame:
             return None
         if row['Action'] == 'Transfer':
             return 'In' if row['Quantity'] > 0 else 'Out'
+        codes = row['Code'].split(';') if 'Code' in row else []
+        if 'Ex' in codes:
+            return 'Exercised'
+        if 'Ep' in codes:
+            return 'Expired'
+        if 'A' in codes:
+            return 'Assigned'
         if (row['Action'] == 'Close' and row['Quantity'] < 0) or (row['Action'] == 'Open' and row['Quantity'] > 0):
             return 'Long'
         return 'Short'
