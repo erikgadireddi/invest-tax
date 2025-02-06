@@ -27,7 +27,7 @@ def transaction_table_descriptor_czk():
    
 def transaction_table_descriptor_native():
    return {
-       'column_order' : ('Display Name', 'Date/Time', 'Quantity', 'Currency', 'T. Price', 'Comm/Fee', 'Realized P/L', 'Accumulated Quantity', 'Action', 'Account'),
+       'column_order' : ('Display Name', 'Date/Time', 'Quantity', 'Currency', 'T. Price', 'Comm/Fee', 'Realized P/L', 'Accumulated Quantity', 'Action', 'Type'),
        'column_config' : {
                         'Display Name': st.column_config.TextColumn("Název", help="Název instrumentu"),
                         'Currency': st.column_config.TextColumn("Měna", help="Měna v které bylo obchodováno"), 

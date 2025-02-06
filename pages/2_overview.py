@@ -65,6 +65,8 @@ if state.trades is not None and not state.trades.empty:
                     st.caption(f'Pro symbol {symbol} chybí nákupy **:red[{max_negative}]** pozic')
                     suggested_row['Accumulated Quantity'] = max_negative
                 ux.add_trades_editor(state, suggested_row, 'suspicious_positions')
+        else:
+            st.caption('Nebyly nalezeny žádné nesrovnalosti v otevřených pozicích. Skvělá práce 🎉, nyní můžeme vše započítat do daňového přehledu!')
 
     missing_incoming_history, missing_outgoing_history = trade.transfers_with_missing_transactions(shown_trades)
     if (len(missing_incoming_history) > 0):
