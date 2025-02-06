@@ -75,7 +75,7 @@ if state.trades is not None and not state.trades.empty:
             st.dataframe(suspicious_positions, hide_index=True, column_config=table_descriptor['column_config'], column_order=table_descriptor['column_order'])
             ux.add_trades_editor(state, suspicious_positions.iloc[0])
 
-        mismatches, _ = position.check_open_position_mismatches(shown_trades, state.positions)
+        mismatches, _ = position.check_open_position_mismatches(shown_trades, state.positions, state.symbols)
         mismatches = mismatches[mismatches['Ticker'] == symbol]
         mismatches['Quantity'] = mismatches['Quantity'].fillna(0)
         if not mismatches.empty:

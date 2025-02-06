@@ -79,7 +79,7 @@ class State:
         self.positions = self.positions.merge(self.symbols[['Ticker']], left_on='Symbol', right_index=True, how='left')
 
     def detect_and_apply_renames(self):
-        mismatches, renames = position.check_open_position_mismatches(self.trades, self.positions)
+        mismatches, renames = position.check_open_position_mismatches(self.trades, self.positions, self.symbols)
         for index, row in renames.iterrows():
             self.symbols.loc[self.symbols.index == row['From'], ['Ticker', 'Date']] = [row['To'], row['Date']] 
         # Now we can adjust the trades for the renames

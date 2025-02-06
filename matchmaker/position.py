@@ -40,14 +40,14 @@ def compute_open_positions_per_account(trades: pd.DataFrame, time: pd.Timestamp 
     positions = trades.groupby('Ticker')[['Account', 'Account Accumulated Quantity', 'Date/Time', 'Split Ratio']].last().reset_index()
     return positions[positions['Account Accumulated Quantity'] != 0]
 
-def check_open_position_mismatches(trades: pd.DataFrame, positions: pd.DataFrame, max_date: pd.Timestamp = pd.Timestamp.now()) -> Tuple[pd.DataFrame, pd.DataFrame]:
+def check_open_position_mismatches(trades: pd.DataFrame, positions: pd.DataFrame, symbols: pd.DataFrame, max_date: pd.Timestamp = pd.Timestamp.now()) -> Tuple[pd.DataFrame, pd.DataFrame]:
     """
     Check for mismatches between computed open positions and position snapshots. Tries to guess symbol renames as those are not in the IBKR history.
     Returns:
         Tuple[pd.DataFrame, pd.DataFrame]: Misaligned positions, guessed renames
     """
     time_points = positions[(positions['Quantity'] != 0) & (positions['Date'] <= max_date)].groupby(['Date', 'Account'])
-    mismatches = pd.DataFrame(columns=['Ticker', 'Date'])
+    mismatches = pd.DataFrame(columns=['Ticker', 'Currency', 'Date'])
     for (time, account), snapshot in time_points:
         # Join and check for quantity mismatches or missing symbols
         time = pd.Timestamp(time).replace(hour=23, minute=59, second=59) # Position snapshots are taken at the end of the day
@@ -81,6 +81,8 @@ def check_open_position_mismatches(trades: pd.DataFrame, positions: pd.DataFrame
             from_row = group.iloc[0]
             to_row = group.iloc[1]
             if (not pd.isna(to_row['First Activity']) and not pd.isna(from_row['First Activity']) and from_row['Last Activity'] > to_row['First Activity']):
+                continue
+            if (symbols[symbols.index == from_row['Ticker']]['Currency'].values[0] != symbols[symbols.index == to_row['Ticker']]['Currency'].values[0]):
                 continue
             action = 'Rename'
             row = pd.DataFrame([{'From': from_row['Ticker'], 'To': to_row['Ticker'], 'Action': action, 'Date': from_row['Snapshot Date'], 'Year': int(from_row['Snapshot Date'].year)}])
