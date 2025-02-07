@@ -7,13 +7,14 @@ from menu import menu
 import matchmaker.data as data
 import matchmaker.snapshot as snapshot
 import matchmaker.trade as trade
+import matchmaker.ibkr as ibkr
 
 def import_trade_file(file):
     try:
         if snapshot.is_snapshot(file):
             return snapshot.load_snapshot(file)
         else:
-            return import_activity_statement(file)
+            return ibkr.import_activity_statement(file)
     except Exception as e:
         st.error(f'Error importing trades. File {file.name} does not contain the expected format. Error: {e}')
         return pd.DataFrame()

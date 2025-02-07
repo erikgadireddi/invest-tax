@@ -44,7 +44,7 @@ if state.trades is not None and not state.trades.empty:
         with st.container(border=False):
             st.error('Historie obsahuje převody pozic mezi účty, kterým chybí nákupní transakce. Pro efektivní párování je třeba doplnit chybějící obchody, aby nákupní cena a datum mohly být použity pro daňové optimalizace.')
             table_descriptor = ux.transaction_table_descriptor_czk()
-            st.dataframe(missing_history, hide_index=True, column_config=table_descriptor['column_config'], column_order=table_descriptor['column_order'])
+            st.dataframe(styling.format_trades(missing_history), hide_index=True, column_config=table_descriptor['column_config'], column_order=table_descriptor['column_order'])
             ux.add_trades_editor(state, missing_history.iloc[0], 'missing_transfers')   
     else:
         suspicious_positions = trade.positions_with_missing_transactions(shown_trades)
@@ -55,7 +55,7 @@ if state.trades is not None and not state.trades.empty:
                 symbol = pills('Vyberte symbol pro doplnění', options=symbols)
                 shown_mismatches = suspicious_positions[suspicious_positions['Symbol'] == symbol]
                 table_descriptor = ux.transaction_table_descriptor_czk()
-                st.dataframe(shown_mismatches, hide_index=True, column_config=table_descriptor['column_config'], column_order=table_descriptor['column_order'])
+                st.dataframe(styling.format_missing_trades(shown_mismatches), hide_index=True, column_config=table_descriptor['column_config'], column_order=table_descriptor['column_order'])
                 max_negative = -shown_mismatches['Accumulated Quantity'].min()
                 max_positive = shown_mismatches['Accumulated Quantity'].max()
                 suggested_row = shown_mismatches.iloc[0].copy()

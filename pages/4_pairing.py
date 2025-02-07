@@ -6,6 +6,7 @@ import matchmaker.currency as currency
 import matchmaker.data as data 
 import matchmaker.ux as ux
 import matchmaker.trade as trade
+import matchmaker.styling as styling
 from menu import menu
 import copy
 
@@ -85,7 +86,7 @@ def page():
         pairs_in_czk = currency.add_czk_conversion_to_pairs(paired_trades, daily_rates, False)
     pairs_in_czk['Percent Return'] = pairs_in_czk['Ratio'] * 100
     filtered_pairs = pairs_in_czk[pairs_in_czk['Sell Time'].dt.year == show_year]
-    trades_display = st.dataframe(filtered_pairs, hide_index=True, height=600, 
+    trades_display = st.dataframe(styling.format_paired_trades(filtered_pairs), hide_index=True, height=600, 
                                 column_order=('Display Name','Quantity','Buy Time','Buy Price','Sell Time','Sell Price','Currency','Buy Cost','Sell Proceeds','Revenue',
                                             'CZK Revenue','Percent Return','Type','Taxable','Buy CZK Rate','Sell CZK Rate', 'CZK Cost','CZK Proceeds'),
                                 column_config={
@@ -122,7 +123,7 @@ def page():
     if not unpaired_sells.empty:
         st.subheader('Nenapárované obchody')
         table_descriptor = ux.transaction_table_descriptor_czk()
-        st.dataframe(unpaired_sells, hide_index=True, column_config=table_descriptor['column_config'], column_order=table_descriptor['column_order'])
+        st.dataframe(styling.format_trades(unpaired_sells), hide_index=True, column_config=table_descriptor['column_config'], column_order=table_descriptor['column_order'])
         ux.add_trades_editor(state, unpaired_sells.iloc[0])
 
 page()
