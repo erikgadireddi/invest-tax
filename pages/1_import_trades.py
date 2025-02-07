@@ -2,13 +2,11 @@ import pandas as pd
 import numpy as np
 import argparse
 import streamlit as st
-from matchmaker.trade import *
-from matchmaker.ibkr import *
-from matchmaker.pairing import *
-from matchmaker.currency import *
+import matchmaker.styling as styling
 from menu import menu
 import matchmaker.data as data
 import matchmaker.snapshot as snapshot
+import matchmaker.trade as trade
 
 def import_trade_file(file):
     try:
@@ -93,7 +91,7 @@ def main():
             state.positions.reset_index(drop=True, inplace=True)
             loaded_count += len(imported_trades)
             import_state.write(f'Slučuji :blue[{len(imported_trades)}] obchodů...')
-            state.trades = merge_trades(state.trades, imported_trades)
+            state.trades = trade.merge_trades(state.trades, imported_trades)
             import_message = f'Importováno :green[{len(state.trades) - trades_count}] obchodů.'
             import_state.write(import_message)
 
@@ -107,9 +105,9 @@ def main():
     
     state.trades.sort_values(by=['Symbol', 'Date/Time'], inplace=True)
     st.caption(f':blue[{len(state.trades)}] nalezených obchodů.')
-    st.dataframe(data=state.trades, hide_index=True, width=1100, height=500, column_order=('Ticker', 'Date/Time', 'Action', 'Quantity', 'Currency', 'T. Price', 'Proceeds', 'Comm/Fee', 'Realized P/L', 'Accumulated Quantity', 'Split Ratio'),
+    st.dataframe(data=styling.format_trades(state.trades), hide_index=True, width=1100, height=500, column_order=('Display Name', 'Date/Time', 'Action', 'Quantity', 'Currency', 'T. Price', 'Proceeds', 'Comm/Fee', 'Realized P/L', 'Accumulated Quantity', 'Split Ratio'),
                     column_config={
-                        'Ticker': st.column_config.TextColumn("Název", help="Název instrumentu"),
+                        'Display Name': st.column_config.TextColumn("Název", help="Název instrumentu"),
                         'Date/Time': st.column_config.DatetimeColumn("Datum", help="Čas obchodu"),
                         'Action': st.column_config.TextColumn("Akce", help="Typ obchodu: Buy, Sell, Dividend, Split, Transfer"),
                         'Realized P/L': st.column_config.NumberColumn("Profit", format="%.1f"), 

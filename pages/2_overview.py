@@ -5,6 +5,7 @@ import matchmaker.currency as currency
 import matchmaker.data as data 
 import matchmaker.ux as ux
 import matchmaker.trade as trade
+import matchmaker.styling as styling
 from menu import menu
 
 st.set_page_config(page_title='Doplnění obchodů', layout='wide')
@@ -31,7 +32,7 @@ if state.trades is not None and not state.trades.empty:
     st.caption(f'Vysvětlivky k jednotlivým sloupcům jsou k dispozici na najetí myší.')
     shown_trades = trades[trades['Year'] == year] if year is not None else trades
     table_descriptor = ux.transaction_table_descriptor_czk()
-    trades_display = st.dataframe(shown_trades, hide_index=True, column_order=table_descriptor['column_order'], column_config=table_descriptor['column_config'])
+    trades_display = st.dataframe(styling.format_trades(shown_trades), hide_index=True, column_order=table_descriptor['column_order'], column_config=table_descriptor['column_config'])
     profit_czk = trades[trades['Year'] == year]['CZK Profit'].sum() if year is not None else trades['CZK Profit'].sum()
     if year is not None:
         st.caption(f'Profit tento rok dle brokera: :green[{profit_czk:.0f}] CZK') 

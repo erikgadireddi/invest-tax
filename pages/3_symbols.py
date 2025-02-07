@@ -5,6 +5,7 @@ import matchmaker.currency as currency
 import matchmaker.data as data 
 import matchmaker.ux as ux
 import matchmaker.position as position
+import matchmaker.styling as styling
 from menu import menu
 
 st.set_page_config(page_title='Doplnění obchodů', layout='wide')
@@ -38,7 +39,7 @@ if state.trades is not None and not state.trades.empty:
         st.caption(f'Pro symbol {symbol} nebyly nalezeny žádné obchody.')
     else:
         table_descriptor = ux.transaction_table_descriptor_native()
-        trades_display = st.dataframe(shown_trades, hide_index=True, column_config=table_descriptor['column_config'], column_order=table_descriptor['column_order'])
+        trades_display = st.dataframe(styling.format_trades(shown_trades), hide_index=True, column_config=table_descriptor['column_config'], column_order=table_descriptor['column_order'])
         profit = shown_trades['Realized P/L'].sum()
         held_position = shown_trades['Accumulated Quantity'].iloc[-1]
         if held_position != 0:
