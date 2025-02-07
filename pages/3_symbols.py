@@ -23,7 +23,7 @@ if state.trades.empty:
 yearly_rates = currency.load_yearly_rates(st.session_state['settings']['currency_rates_dir'])
 
 if state.trades is not None and not state.trades.empty:
-    year = st.selectbox('Zobrazuji symboly', [0] + sorted(state.trades['Year'].unique()), index=0, key='year', format_func=lambda x: 'Všechny' if x == 0 else f's transakcemi od roku {x}')
+    year = st.selectbox('Zobrazuji symboly', [0] + sorted(state.trades['Year'].unique()), index=0, key='from_year', format_func=lambda x: 'Všechny' if x == 0 else f's transakcemi od roku {x}')
     if year is None or year == 0:
         symbols = sorted(state.trades['Ticker'].unique())
     else:
