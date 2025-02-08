@@ -19,8 +19,10 @@ def load_buy_sell_pairs(filename):
     return pairs
     
 def fill_trades_covered_quantity(trades, sell_buy_pairs):
+    def is_short_trade(row):
+        return row['Type'] == 'Short' or row['Type'] == 'Assigned' or (row['Type'] == 'Expired' and row['Quantity'] > 0)
     trades['Covered Quantity'] = 0.0
-    trades['Uncovered Quantity'] = trades.apply(lambda row: row['Quantity'] if row['Type'] == 'Long' else -row['Quantity'], axis=1)
+    trades['Uncovered Quantity'] = trades.apply(lambda row: row['Quantity'] if not is_short_trade(row) else -row['Quantity'], axis=1)
     if sell_buy_pairs is not None:
         for index, row in sell_buy_pairs.iterrows():
             sell_index = row['Sell Transaction']
