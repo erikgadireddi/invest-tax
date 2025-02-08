@@ -20,7 +20,16 @@ def load_buy_sell_pairs(filename):
     
 def fill_trades_covered_quantity(trades, sell_buy_pairs):
     def is_short_trade(row):
-        return row['Type'] == 'Short' or row['Type'] == 'Assigned' or (row['Type'] == 'Expired' and row['Quantity'] > 0)
+        # The trade is borrowing stock or writing options 
+        if row['Type'] == 'Short':
+            return True
+        # It is an assigned option (had to be short) or is assigning stock that opens or fulfills a short position
+        if row['Type'] == 'Assigned' and (not pd.isna(row['Option Type']) or (row['Quantity'] > 0 and row['Action'] == 'Close') or (row['Quantity'] < 0 and row['Action'] == 'Open')):
+            return True
+        # Eexpired options could be owned or borrowed, only one of those is short
+        if row['Type'] == 'Expired' and row['Quantity'] > 0:
+            return True
+        return False
     trades['Covered Quantity'] = 0.0
     trades['Uncovered Quantity'] = trades.apply(lambda row: row['Quantity'] if not is_short_trade(row) else -row['Quantity'], axis=1)
     if sell_buy_pairs is not None:
