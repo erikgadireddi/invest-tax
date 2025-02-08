@@ -91,7 +91,7 @@ def pair_buy_sell(trades, pairs, strategy, from_year=None):
                     sell_fraction = -sell['Uncovered Quantity'] / total_uncovered            
 
                 # If there are enough buy orders to cover the sell order
-                for index_b, buy in buys_to_cover[buys_to_cover['Type'] == sell['Type']].iterrows():
+                for index_b, buy in buys_to_cover[buys_to_cover['Quantity'].apply(lambda x: x * sell['Quantity'] < 0)].iterrows():
                     taxable = (sell['Date/Time'] - buy['Date/Time']).days < 3*365
                     if (filter == 'IgnoreTaxable' and taxable) or (filter == 'TaxableLoss' and not taxable):
                         continue
@@ -104,8 +104,8 @@ def pair_buy_sell(trades, pairs, strategy, from_year=None):
                     
                     if quantity != 0:
                         # Treat short positions as reversed long positions
-                        open = buy if buy['Type'] == 'Long' else sell
-                        close = sell if buy['Type'] == 'Long' else buy
+                        open = buy if buy['Quantity'] > 0 else sell
+                        close = sell if buy['Quantity'] > 0 else buy
                         # Add covered price to the sell order, it might not be all
                         made_profit = (close['T. Price'] - open['T. Price']) > 0
                         if made_profit and filter == 'TaxableLoss':
