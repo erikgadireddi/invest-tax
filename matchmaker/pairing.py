@@ -103,6 +103,9 @@ def pair_buy_sell(trades, pairs, strategy, from_year=None):
 
                 # If there are enough buy orders to cover the sell order
                 for index_b, buy in buys_to_cover[buys_to_cover['Quantity'].apply(lambda x: x * sell['Quantity'] < 0)].iterrows():
+                    if sell['Uncovered Quantity'] == 0:
+                        break
+                    
                     taxable = (sell['Date/Time'] - buy['Date/Time']).days < 3*365
                     if (filter == 'IgnoreTaxable' and taxable) or (filter == 'TaxableLoss' and not taxable):
                         continue
