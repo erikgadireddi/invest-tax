@@ -102,6 +102,7 @@ def pair_buy_sell(trades, pairs, strategy, from_year=None):
                     if match_strategy == 'AverageCost':
                         quantity = buy['Uncovered Quantity'] * sell_fraction # Proportional to the total uncovered quantity
                     else:
+                        assert (buy['Uncovered Quantity'] * sell['Uncovered Quantity']) < 0, f"Buy and sell quantities must have opposite signs. Buy: {buy['Uncovered Quantity']}, Sell: {sell['Uncovered Quantity']} for {symbol} at {sell['Date/Time']}"
                         quantity = min(buy['Uncovered Quantity'], -sell['Uncovered Quantity'])
                     
                     if quantity != 0:
