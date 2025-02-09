@@ -55,7 +55,7 @@ if state.trades is not None and not state.trades.empty:
     renames = state.symbols[(state.symbols['Change Date'] <= max_date) & (state.symbols['Change Date'] >= min_date)]
     renames['Year'] = renames['Change Date'].dt.year
     if not renames.empty:
-        st.warning('Nalezeny možné přejmenování instrumentů. Pokud se nejedná o správné párování, chybí obchody na jednom z těchto symbolů a je třeba je doplnit.')
+        st.warning('Nalezeny přejmenování tickerů obchodovaných společností.')
         column_order = ('Symbol', 'Ticker', 'Year')
         column_config = {'Symbol': st.column_config.TextColumn("Původní", help="Původní symbol"), 
                          'Ticker': st.column_config.TextColumn("Nový", help="Nový symbol"),
