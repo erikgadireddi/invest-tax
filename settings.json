@@ -1,5 +1,6 @@
 {
-    "currency_rates_dir": "currency_rates",
+    "currency_rates_dir": "data/currency_rates",
+    "rename_history_dir": "data/rename_history",
     "tickers_dir": "",
     "load-trades": "invest-private-data/trades.all.csv",
     "save-trades": "invest-private-data/trades.all.csv",
