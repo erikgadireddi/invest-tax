@@ -20,6 +20,7 @@ class State:
         self.actions = pd.DataFrame()
         self.positions = pd.DataFrame()
         self.symbols = pd.DataFrame
+        self.paired_trades = pd.DataFrame()
 
     def update(self, **kwargs):
         for key, value in kwargs.items():
@@ -30,12 +31,14 @@ class State:
         self.actions = st.session_state.actions if 'actions' in st.session_state else pd.DataFrame()
         self.positions = st.session_state.positions if 'positions' in st.session_state else pd.DataFrame()
         self.symbols = st.session_state.symbols if 'symbols' in st.session_state else pd.DataFrame()
+        self.paired_trades = st.session_state.paired_trades if 'paired_trades' in st.session_state else pd.DataFrame()
 
     def save_session(self):
         st.session_state.update(trades=self.trades)
         st.session_state.update(actions=self.actions)
         st.session_state.update(positions=self.positions)
         st.session_state.update(symbols=self.symbols)
+        st.session_state.update(paired_trades=self.paired_trades)
 
     def recompute_positions(self, added_trades = None):
         if added_trades is not None:

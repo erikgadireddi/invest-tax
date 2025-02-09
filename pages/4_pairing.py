@@ -21,7 +21,6 @@ def page():
     # Trades we previously tried to pair. Will be used to check when recomputation is needed.
     computed_trades = st.session_state.computed_trades if 'computed_trades' in st.session_state else pd.DataFrame()
     match_config = st.session_state.match_config if 'match_config' in st.session_state else {}
-    paired_trades = st.session_state.paired_trades if 'paired_trades' in st.session_state else pd.DataFrame()
     buys = st.session_state.buys if 'buys' in st.session_state else pd.DataFrame()
     sells = st.session_state.sells if 'sells' in st.session_state else pd.DataFrame()
     previous_config = copy.deepcopy(match_config)
@@ -62,11 +61,10 @@ def page():
                 break
         
     if need_recompute:
-        buys, sells, paired_trades = pair_buy_sell(trades, paired_trades, show_strategy, show_year)
+        buys, sells, state.paired_trades = pair_buy_sell(trades, state.paired_trades, show_strategy, show_year)
         st.session_state.update(buys=buys)
         st.session_state.update(sells=sells)
-        st.session_state.update(paired_trades=paired_trades)
-        st.session_state.update(computed_trades=trades)
+        state.save_session()
         # Update all higher years to use the same strategy
         for year in years[years.index(show_year)+1:]:
             match_config[year]['strategy'] = this_config['strategy']
@@ -74,16 +72,16 @@ def page():
     st.session_state.update(match_config=match_config)
     st.session_state.update(show_year=show_year)
 
-    if paired_trades.empty:
+    if state.paired_trades.empty:
         st.caption('Nebyly nalezeny žádné párované obchody.')
         return
     
     if this_config['yearly_rates']:
         yearly_rates = currency.load_yearly_rates(st.session_state['settings']['currency_rates_dir'])
-        pairs_in_czk = currency.add_czk_conversion_to_pairs(paired_trades, yearly_rates, True)
+        pairs_in_czk = currency.add_czk_conversion_to_pairs(state.paired_trades, yearly_rates, True)
     else:
         daily_rates = currency.load_daily_rates(st.session_state['settings']['currency_rates_dir'])
-        pairs_in_czk = currency.add_czk_conversion_to_pairs(paired_trades, daily_rates, False)
+        pairs_in_czk = currency.add_czk_conversion_to_pairs(state.paired_trades, daily_rates, False)
     pairs_in_czk['Percent Return'] = pairs_in_czk['Ratio'] * 100
     filtered_pairs = pairs_in_czk[pairs_in_czk['Sell Time'].dt.year == show_year]
     trades_display = st.dataframe(styling.format_paired_trades(filtered_pairs), hide_index=True, height=600, 
