@@ -28,7 +28,7 @@ def compute_open_positions(trades: pd.DataFrame, time: pd.Timestamp = pd.Timesta
     """
     trades = trades[trades['Date/Time'] <= time]
     positions = trades.groupby('Ticker')[['Accumulated Quantity', 'Date/Time', 'Split Ratio']].last().reset_index()
-    return positions[positions['Accumulated Quantity'] != 0]
+    return positions[np.abs(positions['Accumulated Quantity']) > 1e-9]
 
 def compute_open_positions_per_account(trades: pd.DataFrame, time: pd.Timestamp = pd.Timestamp.now(), account: Optional[str] = None) -> pd.DataFrame:
     """
@@ -38,7 +38,7 @@ def compute_open_positions_per_account(trades: pd.DataFrame, time: pd.Timestamp 
     if account is not None:
         trades = trades[trades['Account'] == account]
     positions = trades.groupby('Ticker')[['Account', 'Account Accumulated Quantity', 'Date/Time', 'Split Ratio']].last().reset_index()
-    return positions[positions['Account Accumulated Quantity'] != 0]
+    return positions[np.abs(positions['Account Accumulated Quantity']) > 1e-9]
 
 def check_open_position_mismatches(trades: pd.DataFrame, positions: pd.DataFrame, symbols: pd.DataFrame, max_date: pd.Timestamp = pd.Timestamp.now()) -> pd.DataFrame:
     """
@@ -55,7 +55,7 @@ def check_open_position_mismatches(trades: pd.DataFrame, positions: pd.DataFrame
         merged = snapshot.merge(open_positions, on=['Ticker', 'Account'], suffixes=(' Positions', ' Trades'), how='outer')
         merged['Quantity Mismatch'] = merged['Account Accumulated Quantity'].fillna(0) - merged['Quantity'].fillna(0) * merged['Split Ratio'].fillna(1)
         merged['Snapshot Date'] = time
-        new_mismatches = merged[merged['Quantity Mismatch'] != 0]
+        new_mismatches = merged[np.abs(merged['Quantity Mismatch']) > 1e-9]
         mismatches = pd.concat([mismatches, new_mismatches])
 
     if mismatches.empty:
