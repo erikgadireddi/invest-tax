@@ -4,6 +4,14 @@ import io
 import matchmaker.ibkr as ibkr
 import pandas as pd
 
+"""
+Anonymize IBKR report by removing personal information, net worth, and anything that's not directly needed to match trades.
+Optionally you can remove specific tickers from the report, and multiply all transactions by a number to hide your real volume.
+
+Example usage: anonymize.py report_2024.csv --remove AAPL,TSLA,BABA
+"""
+
+# Specify the tables we want to keep in the report
 prefixes_to_keep = [
     "Statement",
     "Account Information,Header,Field Name",
@@ -15,6 +23,7 @@ prefixes_to_keep = [
 ]
 tables_to_keep = ['Account Information'] + prefixes_to_keep
 
+# These columns are multiplied by the multiplier to hide your real volumes
 columns_to_multiply = [
     "Quantity",
     "Prior Quantity",
@@ -45,7 +54,7 @@ if __name__ == "__main__":
     parser.add_argument("--output", "-o", help="Output report file. If not specified, the input file will be used with _anonymized appended.")
     parser.add_argument("--remove", "-r", action="append", help="Comma-separated tickers to remove from the report. Use this to narrow it down to only what you want to share.", default=[])
     parser.add_argument("--multiplier", "-m", help="Multiplies all transactions by this number, hiding your real volume. Use this to truly anonymize your report, especially if you'd like to share it with the devs or other parties without disclosing your net worth.", type=float, default=1.0)
-
+    
     try:
         args = parser.parse_args()
     except SystemExit:
