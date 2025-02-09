@@ -51,9 +51,9 @@ if state.trades is not None and not state.trades.empty:
         column_config['Date/Time'] = st.column_config.DateColumn("Poslední transakce", help="Datum poslední transakce s tímto instrumentem")
         trades_display = st.dataframe(open_positions, hide_index=True, column_order=column_order, column_config=column_config)
     # Display any mismatches in open positions if detected
-    mismatches, _ = position.check_open_position_mismatches(shown_trades, state.positions, state.symbols, max_date)
-    renames = state.symbols[(state.symbols['Date'] <= max_date) & (state.symbols['Date'] >= min_date)]
-    renames['Year'] = renames['Date'].dt.year
+    mismatches = position.check_open_position_mismatches(shown_trades, state.positions, state.symbols, max_date)
+    renames = state.symbols[(state.symbols['Change Date'] <= max_date) & (state.symbols['Change Date'] >= min_date)]
+    renames['Year'] = renames['Change Date'].dt.year
     if not renames.empty:
         st.warning('Nalezeny možné přejmenování instrumentů. Pokud se nejedná o správné párování, chybí obchody na jednom z těchto symbolů a je třeba je doplnit.')
         column_order = ('Symbol', 'Ticker', 'Year')
