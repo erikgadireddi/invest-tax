@@ -17,4 +17,4 @@ Export Interactive Brokers Statements->**Activity Statements** and drop them int
 Report all problems here: https://github.com/DeirhX/invest-tax/issues
 
 # Privacy
-All data is stored only on your local computer (browser session). You can verify that by running the app locally. For debugging purposes or just for a greater sense of privacy, you can use [anonymizer.py](https://github.com/DeirhX/invest-tax/blob/main/anonymize.py) to strip down your exports of any personally identifiable information and cash assets down to only the lines that are mandatory for successful parsing.
+All data is stored only on your local computer (browser session). You can verify that by running the app locally. For debugging purposes or just for a greater sense of privacy, you can use [anonymizer.py](https://github.com/DeirhX/invest-tax/blob/main/anonymize.py) to strip down your exports of any personally identifiable information and cash assets down to only the lines that are mandatory for successful parsing. If desired, you can also add a multiplier to your transactions to hide their real volume.
