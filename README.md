@@ -1,4 +1,6 @@
-Czech tax optimizer using streamlit as its web UX.
+Czech tax optimizer using streamlit as its web UX. 
+
+Publicly hosted on https://taxing.streamlit.app, but you can run your own instance just as well.
 
 # Installation:
 
