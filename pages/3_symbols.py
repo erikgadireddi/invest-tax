@@ -6,6 +6,7 @@ import matchmaker.data as data
 import matchmaker.ux as ux
 import matchmaker.position as position
 import matchmaker.styling as styling
+import matchmaker.trade as trade
 from menu import menu
 
 st.set_page_config(page_title='Doplnění obchodů', layout='wide')
@@ -68,8 +69,8 @@ if state.trades is not None and not state.trades.empty:
                     st.session_state['changes_made'] = False
                     st.rerun()
 
-        suspicious_positions = shown_trades[((shown_trades['Accumulated Quantity'] < 0) & (shown_trades['Type'] == 'Long') & (shown_trades['Action'] == 'Close') | 
-                                            (shown_trades['Accumulated Quantity'] > 0) & (shown_trades['Type'] == 'Short') & (shown_trades['Action'] == 'Close'))]
+        suspicious_positions = trade.positions_with_missing_transactions(shown_trades)
+
         if len(suspicious_positions) > 0:
             st.error('Historie obsahuje long transakce vedoucí k negativním pozicím. Je možné, že nebyly nahrány všechny obchody či korporátní akce. Zkontrolujte, prosím, zdrojová data a případně doplňte chybějící transakce.')
             table_descriptor = ux.transaction_table_descriptor_native()

@@ -113,8 +113,8 @@ def positions_with_missing_transactions(trades: pd.DataFrame) -> pd.DataFrame:
     Identify positions that should be closing positions entirely but our accumulated quantity is not zero. 
     This implies that we're missing some of the opening transactions.
     """
-    return trades[((trades['Accumulated Quantity'] < 0) & (trades['Type'] == 'Long') & (trades['Action'] == 'Close') | 
-                  (trades['Accumulated Quantity'] > 0) & (trades['Type'] == 'Short') & (trades['Action'] == 'Close'))]
+    # If it's a closing transaction, quantity and accumulated quantity should have opposite signs (closing the position should mean reducing it towards zero)
+    return trades[(trades['Action'] == 'Close') & (trades['Accumulated Quantity'] != 0) & ((trades['Accumulated Quantity'] * trades['Quantity']) >= 0)]
 
 def per_account_transfers_with_missing_transactions(trades: pd.DataFrame) -> pd.DataFrame:
     """ Identify transfers that do not have corresponding accumulated quantity in the source account """
