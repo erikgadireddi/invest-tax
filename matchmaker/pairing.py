@@ -20,14 +20,16 @@ def load_buy_sell_pairs(filename):
     
 def fill_trades_covered_quantity(trades, sell_buy_pairs):
     def is_short_trade(row):
+        def is_quantity_opposite_of_action(row : pd.Series):
+            return (row['Quantity'] > 0 and row['Action'] == 'Close') or (row['Quantity'] < 0 and row['Action'] == 'Open')
         # The trade is borrowing stock or writing options 
         if row['Type'] == 'Short':
             return True
         # It is an assigned option (had to be short) or is assigning stock that opens or fulfills a short position
-        if row['Type'] == 'Assigned' and (not pd.isna(row['Option Type']) or (row['Quantity'] > 0 and row['Action'] == 'Close') or (row['Quantity'] < 0 and row['Action'] == 'Open')):
+        if row['Type'] == 'Assigned' and (not pd.isna(row['Option Type'] or is_quantity_opposite_of_action(row))):
             return True
         # It is stock resulting from exercised call option and it closes a position (there should be an open short position) 
-        if row['Type'] == 'Exercised' and pd.isna(row['Option Type']) and row['Action'] == 'Close':
+        if row['Type'] == 'Exercised' and pd.isna(row['Option Type']) and is_quantity_opposite_of_action(row):
             return True
         # Expired options could be owned or borrowed, only one of those is short
         if row['Type'] == 'Expired' and row['Quantity'] > 0:
