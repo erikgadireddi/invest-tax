@@ -26,7 +26,10 @@ def fill_trades_covered_quantity(trades, sell_buy_pairs):
         # It is an assigned option (had to be short) or is assigning stock that opens or fulfills a short position
         if row['Type'] == 'Assigned' and (not pd.isna(row['Option Type']) or (row['Quantity'] > 0 and row['Action'] == 'Close') or (row['Quantity'] < 0 and row['Action'] == 'Open')):
             return True
-        # Eexpired options could be owned or borrowed, only one of those is short
+        # It is stock resulting from exercised call option and it closes a position (there should be an open short position) 
+        if row['Type'] == 'Exercised' and pd.isna(row['Option Type']) and row['Action'] == 'Close':
+            return True
+        # Expired options could be owned or borrowed, only one of those is short
         if row['Type'] == 'Expired' and row['Quantity'] > 0:
             return True
         return False
