@@ -52,20 +52,24 @@ if state.trades is not None and not state.trades.empty:
         trades_display = st.dataframe(open_positions, hide_index=True, column_order=column_order, column_config=column_config)
     # Display any mismatches in open positions if detected
     mismatches = position.check_open_position_mismatches(shown_trades, state.positions, state.symbols, max_date)
-    guessed_renames = position.detect_renames_in_mismatches(mismatches, state.symbols)
-    
+   
     renames = state.symbols[(state.symbols['Change Date'] <= max_date) & (state.symbols['Change Date'] >= min_date)]
     # Filter out renames that do not have a trade preceding its Change Date
     renames = renames[renames.apply(lambda row: any([shown_trades[(shown_trades['Symbol'] == row.name) & (shown_trades['Date/Time'] < row['Change Date'])].shape[0] > 0]), axis=1)]
-    
-    renames['Year'] = renames['Change Date'].dt.year
-    if not renames.empty:
-        st.warning('Nalezeny přejmenování tickerů obchodovaných společností.')
-        column_order = ('Symbol', 'Ticker', 'Year')
-        column_config = {'Symbol': st.column_config.TextColumn("Původní", help="Původní symbol"), 
-                         'Ticker': st.column_config.TextColumn("Nový", help="Nový symbol"),
-                         'Year': st.column_config.NumberColumn("Rok", help="Rok, ve kterém byla provedena změna", format="%d")}
-        st.dataframe(renames, hide_index=True, column_order=column_order, column_config=column_config)
+
+    def show_rename_table(renames: pd.DataFrame, caption: str = 'Nalezená přejmenování tickerů obchodovaných společností.'):
+        renames['Year'] = renames['Change Date'].dt.year
+        if not renames.empty:
+            st.warning(caption)
+            column_order = ('Symbol', 'Ticker', 'Year')
+            column_config = {'Symbol': st.column_config.TextColumn("Původní", help="Původní symbol"), 
+                            'Ticker': st.column_config.TextColumn("Nový", help="Nový symbol"),
+                            'Year': st.column_config.NumberColumn("Rok", help="Rok, ve kterém byla provedena změna", format="%d")}
+            st.dataframe(renames, hide_index=True, column_order=column_order, column_config=column_config)
+
+    show_rename_table(renames)
+    guessed_renames = position.detect_renames_in_mismatches(mismatches, state.symbols)
+    show_rename_table(guessed_renames, 'Odhadnutá přejmenování tickerů obchodovaných společností.')
 
     mismatches['Quantity'] = mismatches['Quantity'].fillna(0)
     mismatches['Account Accumulated Quantity'] = mismatches['Account Accumulated Quantity'].fillna(0)

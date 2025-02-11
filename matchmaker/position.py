@@ -77,7 +77,7 @@ def check_open_position_mismatches(trades: pd.DataFrame, positions: pd.DataFrame
     return mismatches
 
 def detect_renames_in_mismatches(mismatches: pd.DataFrame, symbols: pd.DataFrame) -> pd.DataFrame:
-    guesses = pd.DataFrame(columns=['From', 'To', 'Action', 'Date'])
+    guesses = pd.DataFrame(columns=['From', 'To', 'Action', 'Change Date'])
     grouped_mismatches = mismatches.sort_values(by='Last Activity').groupby([mismatches['Quantity Mismatch'].abs(), mismatches['Snapshot Date']])
     for name, group in grouped_mismatches:
         if len(group) == 2:
@@ -89,11 +89,12 @@ def detect_renames_in_mismatches(mismatches: pd.DataFrame, symbols: pd.DataFrame
             if (symbols[symbols.index == from_row['Display Name']]['Currency'].values[0] != symbols[symbols.index == to_row['Display Name']]['Currency'].values[0]):
                 continue
             action = 'Rename'
-            row = pd.DataFrame([{'From': from_row['Display Name'], 'To': to_row['Display Name'], 'Action': action, 'Date': from_row['Snapshot Date'], 'Year': int(from_row['Snapshot Date'].year)}])
+            row = pd.DataFrame([{'From': from_row['Display Name'], 'To': to_row['Display Name'], 'Action': action, 'Change Date': from_row['Snapshot Date'], 'Year': int(from_row['Snapshot Date'].year)}])
             guesses = pd.concat([guesses, row])
 
     if not guesses.empty:
         # Return only mismatches with no entry in guesses (From and To)
         mismatches = mismatches[~mismatches['Display Name'].isin(guesses['From'])]
         mismatches = mismatches[~mismatches['Display Name'].isin(guesses['To'])]
+    guesses.rename(columns={'From': 'Symbol', 'To': 'Ticker'}, inplace=True)
     return guesses
