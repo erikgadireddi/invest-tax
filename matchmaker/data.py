@@ -105,4 +105,5 @@ class State:
             self.trades = trade.compute_accumulated_positions(self.trades)
 
         # Drop symbols that have no trades and are not mentioned in positions
-        self.symbols = self.symbols[self.symbols['Ticker'].isin(self.trades['Ticker']) | self.symbols['Ticker'].isin(self.positions['Ticker'])]        
+        # self.symbols = self.symbols[self.symbols['Ticker'].isin(self.trades['Ticker']) | self.symbols['Ticker'].isin(self.positions['Ticker'])
+        #                            | self.symbols['Ticker'].isin(self.trades['Ticker']) | self.symbols.index.isin(self.positions['Ticker'])]

@@ -53,8 +53,11 @@ if state.trades is not None and not state.trades.empty:
     # Display any mismatches in open positions if detected
     mismatches = position.check_open_position_mismatches(shown_trades, state.positions, state.symbols, max_date)
     guessed_renames = position.detect_renames_in_mismatches(mismatches, state.symbols)
-    # TODO: Include only symbols for which we have activity in trades or positions before the Change Date
+    
     renames = state.symbols[(state.symbols['Change Date'] <= max_date) & (state.symbols['Change Date'] >= min_date)]
+    # Filter out renames that do not have a trade preceding its Change Date
+    renames = renames[renames.apply(lambda row: any([shown_trades[(shown_trades['Symbol'] == row.name) & (shown_trades['Date/Time'] < row['Change Date'])].shape[0] > 0]), axis=1)]
+    
     renames['Year'] = renames['Change Date'].dt.year
     if not renames.empty:
         st.warning('Nalezeny přejmenování tickerů obchodovaných společností.')
