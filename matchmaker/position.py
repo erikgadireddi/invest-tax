@@ -37,7 +37,8 @@ def compute_open_positions_per_account(trades: pd.DataFrame, time: pd.Timestamp 
     trades = trades[trades['Date/Time'] <= time]
     if account is not None:
         trades = trades[trades['Account'] == account]
-    positions = trades.groupby('Ticker')[['Account', 'Account Accumulated Quantity', 'Date/Time', 'Split Ratio']].last().reset_index()
+    positions = trades.groupby('Display Name')[['Account', 'Account Accumulated Quantity', 'Date/Time', 'Split Ratio']].last().reset_index()
+
     return positions[np.abs(positions['Account Accumulated Quantity']) > 1e-9]
 
 def check_open_position_mismatches(trades: pd.DataFrame, positions: pd.DataFrame, symbols: pd.DataFrame, max_date: pd.Timestamp = pd.Timestamp.now()) -> pd.DataFrame:
@@ -52,7 +53,7 @@ def check_open_position_mismatches(trades: pd.DataFrame, positions: pd.DataFrame
         # Join and check for quantity mismatches or missing symbols
         time = pd.Timestamp(time).replace(hour=23, minute=59, second=59) # Position snapshots are taken at the end of the day
         open_positions = compute_open_positions_per_account(trades, time, account).drop(columns=['Split Ratio'])
-        merged = snapshot.merge(open_positions, on=['Ticker', 'Account'], suffixes=(' Positions', ' Trades'), how='outer')
+        merged = snapshot.merge(open_positions, on=['Display Name', 'Account'], suffixes=(' Positions', ' Trades'), how='outer')
         merged['Quantity Mismatch'] = merged['Account Accumulated Quantity'].fillna(0) - merged['Quantity'].fillna(0) * merged['Split Ratio'].fillna(1)
         merged['Snapshot Date'] = time
         new_mismatches = merged[np.abs(merged['Quantity Mismatch']) > 1e-9]
@@ -74,3 +75,25 @@ def check_open_position_mismatches(trades: pd.DataFrame, positions: pd.DataFrame
     # Group by possibly renamed symbols and check if we have pairs of mismatches
     mismatches = mismatches.merge(symbol_dates, on='Ticker', how='left')
     return mismatches
+
+def detect_renames_in_mismatches(mismatches: pd.DataFrame, symbols: pd.DataFrame) -> pd.DataFrame:
+    guesses = pd.DataFrame(columns=['From', 'To', 'Action', 'Date'])
+    grouped_mismatches = mismatches.sort_values(by='Last Activity').groupby([mismatches['Quantity Mismatch'].abs(), mismatches['Snapshot Date']])
+    for name, group in grouped_mismatches:
+        if len(group) == 2:
+            # Don't consider the symbol to be renamed if both symbols have overlapping activity in the trade history
+            from_row = group.iloc[0]
+            to_row = group.iloc[1]
+            if (not pd.isna(to_row['First Activity']) and not pd.isna(from_row['First Activity']) and from_row['Last Activity'] > to_row['First Activity']):
+                continue
+            if (symbols[symbols.index == from_row['Display Name']]['Currency'].values[0] != symbols[symbols.index == to_row['Display Name']]['Currency'].values[0]):
+                continue
+            action = 'Rename'
+            row = pd.DataFrame([{'From': from_row['Display Name'], 'To': to_row['Display Name'], 'Action': action, 'Date': from_row['Snapshot Date'], 'Year': int(from_row['Snapshot Date'].year)}])
+            guesses = pd.concat([guesses, row])
+
+    if not guesses.empty:
+        # Return only mismatches with no entry in guesses (From and To)
+        mismatches = mismatches[~mismatches['Display Name'].isin(guesses['From'])]
+        mismatches = mismatches[~mismatches['Display Name'].isin(guesses['To'])]
+    return guesses

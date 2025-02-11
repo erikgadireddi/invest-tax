@@ -63,6 +63,8 @@ class State:
             self.trades = trade.compute_accumulated_positions(self.trades)
             self.positions['Date/Time'] = pd.to_datetime(self.positions['Date']) + pd.Timedelta(seconds=86399) # Add 23:59:59 to the date
             self.positions = trade.add_split_data(self.positions, self.actions)
+            self.positions['Display Name'] = self.positions['Ticker']
+            self.positions.drop(columns=['Ticker'], inplace=True)
             
             self.trades['Display Name'] = self.trades['Ticker'] + self.trades['Display Suffix'].fillna('')
 
@@ -102,5 +104,5 @@ class State:
             self._apply_renames()
             self.trades = trade.compute_accumulated_positions(self.trades)
 
-        # Drop symbols that have no trades
-        self.symbols = self.symbols[self.symbols['Ticker'].isin(self.trades['Ticker'])]
+        # Drop symbols that have no trades and are not mentioned in positions
+        self.symbols = self.symbols[self.symbols['Ticker'].isin(self.trades['Ticker']) | self.symbols['Ticker'].isin(self.positions['Ticker'])]        

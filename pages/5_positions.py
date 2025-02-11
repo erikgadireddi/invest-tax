@@ -52,6 +52,8 @@ if state.trades is not None and not state.trades.empty:
         trades_display = st.dataframe(open_positions, hide_index=True, column_order=column_order, column_config=column_config)
     # Display any mismatches in open positions if detected
     mismatches = position.check_open_position_mismatches(shown_trades, state.positions, state.symbols, max_date)
+    guessed_renames = position.detect_renames_in_mismatches(mismatches, state.symbols)
+    # TODO: Include only symbols for which we have activity in trades or positions before the Change Date
     renames = state.symbols[(state.symbols['Change Date'] <= max_date) & (state.symbols['Change Date'] >= min_date)]
     renames['Year'] = renames['Change Date'].dt.year
     if not renames.empty:
@@ -67,7 +69,7 @@ if state.trades is not None and not state.trades.empty:
     if not mismatches.empty:
         st.error('Nalezeny nesrovnalosti v otevřených pozicích. Bude třeba doplnit chybějící obchody.')
         table_descriptor = ux.transaction_table_descriptor_native()
-        column_order = ('Date', 'Ticker', 'Account Accumulated Quantity', 'Quantity', 'Account', 'Date')
+        column_order = ('Date', 'Display Name', 'Account Accumulated Quantity', 'Quantity', 'Account', 'Date')
         table_descriptor['column_config']['Account Accumulated Quantity'] = st.column_config.NumberColumn("Počet dle transakcí", help="Spočítaná pozice ze všech nahraných transakcí", format="%f")
         table_descriptor['column_config']['Quantity'] = st.column_config.NumberColumn("Počet dle brokera", help="Pozice reportovaná brokerem v nahraném souboru", format="%f")
         table_descriptor['column_config']['Account'] = st.column_config.TextColumn("Účet u brokera", help="Název účtu, ke kterému se transakce vztahují. Každý účet má své vlastní pozice.")
