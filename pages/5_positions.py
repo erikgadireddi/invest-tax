@@ -76,8 +76,9 @@ if state.trades is not None and not state.trades.empty:
 
     show_rename_table(renames, False)
     guessed_renames = position.detect_renames_in_mismatches(mismatches, state.symbols)
-    guessed_renames['Apply'] = False
-    guessed_renames = show_rename_table(guessed_renames, True, 'Odhadnutá přejmenování tickerů obchodovaných společností.')
+    if not guessed_renames.empty:
+        guessed_renames['Apply'] = False
+        guessed_renames = show_rename_table(guessed_renames, True, 'Odhadnutá přejmenování tickerů obchodovaných společností.')
 
     if st.session_state.get('rename_changes_made', False):
         if st.button("Aplikovat změny"):
@@ -85,11 +86,10 @@ if state.trades is not None and not state.trades.empty:
                 if row['Apply']:
                     state.symbols.loc[row['Symbol'], 'Ticker'] = row['Ticker']
                     state.symbols.loc[row['Symbol'], 'Change Date'] = pd.NaT
-            state.save_session()
             st.success("Změny byly úspěšně aplikovány.")
             st.session_state['rename_changes_made'] = False
-            # state.apply_renames()
             state.recompute_positions()
+            state.save_session()
             st.rerun()
 
     mismatches['Quantity'] = mismatches['Quantity'].fillna(0)

@@ -53,6 +53,8 @@ class State:
         new_symbols['Change Date'] = pd.NaT
         new_symbols['Currency'] = new_symbols.index.map(lambda symbol: self.trades[self.trades['Symbol'] == symbol]['Currency'].iloc[0] if not self.trades[self.trades['Symbol'] == symbol].empty else None)
         self.symbols = pd.concat([self.symbols, new_symbols]).drop_duplicates()
+        # Auto-generated symbols need to yield priority to possibly manually added symbols
+        self.symbols = self.symbols[~self.symbols.index.duplicated(keep='first')]
 
         if len(added_trades) > 0:
             trade.adjust_for_splits(added_trades, self.actions)
