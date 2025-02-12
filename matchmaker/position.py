@@ -71,9 +71,9 @@ def check_open_position_mismatches(trades: pd.DataFrame, positions: pd.DataFrame
         'Date/Time': ['min', 'max']
     }
     symbol_dates = trades.groupby('Ticker').agg(agg_funcs).reset_index()
-    symbol_dates.columns = ['Ticker', 'First Activity', 'Last Activity']
+    symbol_dates.columns = ['Display Name', 'First Activity', 'Last Activity']
     # Group by possibly renamed symbols and check if we have pairs of mismatches
-    mismatches = mismatches.merge(symbol_dates, on='Ticker', how='left')
+    mismatches = mismatches.merge(symbol_dates, on='Display Name', how='left')
     return mismatches
 
 def detect_renames_in_mismatches(mismatches: pd.DataFrame, symbols: pd.DataFrame) -> pd.DataFrame:

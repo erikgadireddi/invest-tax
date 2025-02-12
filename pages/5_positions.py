@@ -85,7 +85,7 @@ if state.trades is not None and not state.trades.empty:
             for index, row in guessed_renames.iterrows():
                 if row['Apply']:
                     state.symbols.loc[row['Symbol'], 'Ticker'] = row['Ticker']
-                    state.symbols.loc[row['Symbol'], 'Change Date'] = pd.NaT
+                    state.symbols.loc[row['Symbol'], 'Change Date'] = row['Change Date']
             st.success("Změny byly úspěšně aplikovány.")
             st.session_state['rename_changes_made'] = False
             state.recompute_positions()

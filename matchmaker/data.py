@@ -94,10 +94,14 @@ class State:
         renames = pd.read_csv(renames_table, parse_dates=['Change Date'])
         renames.set_index('Old', inplace=True)
         # Apply the renames to the symbols table
-        self.symbols.drop(columns=['Change Date'], errors='ignore', inplace=True)
-        self.symbols = self.symbols.merge(renames[['New', 'Change Date']], left_index=True, right_index=True, how='left')
-        self.symbols['Ticker'] = self.symbols['New'].combine_first(self.symbols['Ticker'])
-        self.symbols.drop(columns=['New'], inplace=True)
+        kept_symbols = self.symbols[~pd.isna(self.symbols['Change Date'])]
+        updated_symbols = self.symbols[pd.isna(self.symbols['Change Date'])]
+        updated_symbols.drop(columns=['Change Date'], errors='ignore', inplace=True)
+        updated_symbols = updated_symbols.merge(renames[['New', 'Change Date']], left_index=True, right_index=True, how='left')
+        updated_symbols['Ticker'] = updated_symbols['New'].combine_first(self.symbols['Ticker'])
+        updated_symbols.drop(columns=['New'], inplace=True)
+
+        self.symbols = pd.concat([kept_symbols, updated_symbols]).drop_duplicates()
 
         # Now we can adjust the trades for the renames
         if len(renames) > 0:
