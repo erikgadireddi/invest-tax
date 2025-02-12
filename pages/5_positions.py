@@ -57,19 +57,40 @@ if state.trades is not None and not state.trades.empty:
     # Filter out renames that do not have a trade preceding its Change Date
     renames = renames[renames.apply(lambda row: any([shown_trades[(shown_trades['Symbol'] == row.name) & (shown_trades['Date/Time'] < row['Change Date'])].shape[0] > 0]), axis=1)]
 
-    def show_rename_table(renames: pd.DataFrame, caption: str = 'Nalezená přejmenování tickerů obchodovaných společností.'):
+    def show_rename_table(renames: pd.DataFrame, allow_edit: bool, caption: str = 'Nalezená přejmenování tickerů obchodovaných společností.'):
         renames['Year'] = renames['Change Date'].dt.year
         if not renames.empty:
             st.warning(caption)
-            column_order = ('Symbol', 'Ticker', 'Year')
+            column_order = ('Symbol', 'Ticker', 'Year', 'Apply')
             column_config = {'Symbol': st.column_config.TextColumn("Původní", help="Původní symbol"), 
                             'Ticker': st.column_config.TextColumn("Nový", help="Nový symbol"),
-                            'Year': st.column_config.NumberColumn("Rok", help="Rok, ve kterém byla provedena změna", format="%d")}
-            st.dataframe(renames, hide_index=True, column_order=column_order, column_config=column_config)
+                            'Year': st.column_config.NumberColumn("Rok", help="Rok, ve kterém byla provedena změna", format="%d"),
+                            'Apply': st.column_config.CheckboxColumn("Použít", help="Použít nový symbol pro všechny transakce")}
+                            
+            if not allow_edit:
+                st.dataframe(renames, hide_index=True, column_order=column_order, column_config=column_config)
+            else:
+                def on_change():
+                    st.session_state['rename_changes_made'] = True
+                return st.data_editor(renames, hide_index=True, column_order=column_order, column_config=column_config, disabled=('Symbol', 'Ticker', 'Year'), on_change=on_change)
 
-    show_rename_table(renames)
+    show_rename_table(renames, False)
     guessed_renames = position.detect_renames_in_mismatches(mismatches, state.symbols)
-    show_rename_table(guessed_renames, 'Odhadnutá přejmenování tickerů obchodovaných společností.')
+    guessed_renames['Apply'] = False
+    guessed_renames = show_rename_table(guessed_renames, True, 'Odhadnutá přejmenování tickerů obchodovaných společností.')
+
+    if st.session_state.get('rename_changes_made', False):
+        if st.button("Aplikovat změny"):
+            for index, row in guessed_renames.iterrows():
+                if row['Apply']:
+                    state.symbols.loc[row['Symbol'], 'Ticker'] = row['Ticker']
+                    state.symbols.loc[row['Symbol'], 'Change Date'] = pd.NaT
+            state.save_session()
+            st.success("Změny byly úspěšně aplikovány.")
+            st.session_state['rename_changes_made'] = False
+            # state.apply_renames()
+            state.recompute_positions()
+            st.rerun()
 
     mismatches['Quantity'] = mismatches['Quantity'].fillna(0)
     mismatches['Account Accumulated Quantity'] = mismatches['Account Accumulated Quantity'].fillna(0)
