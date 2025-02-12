@@ -19,7 +19,7 @@ class State:
         self.trades = pd.DataFrame()
         self.actions = pd.DataFrame()
         self.positions = pd.DataFrame()
-        self.symbols = pd.DataFrame
+        self.symbols = pd.DataFrame()
         self.paired_trades = pd.DataFrame()
 
     def update(self, **kwargs):
@@ -42,19 +42,17 @@ class State:
 
     def recompute_positions(self, added_trades = None):
         if added_trades is not None:
-            updated_tickers = added_trades['Ticker'].unique()
             new_symbols = pd.DataFrame(added_trades['Symbol'].unique(), columns=['Symbol'])
-            new_symbols.set_index('Symbol', inplace=True)
-            new_symbols['Ticker'] = new_symbols.index
-            self.symbols = pd.concat([self.symbols, new_symbols]).drop_duplicates()
         else:
             all_symbols = pd.concat([self.trades['Symbol'], self.positions['Symbol']]).unique()
-            self.symbols = pd.DataFrame(all_symbols, columns=['Symbol'])
-            self.symbols.set_index('Symbol', inplace=True)
-            self.symbols['Ticker'] = self.symbols.index
-            self.symbols['Change Date'] = pd.NaT
-            self.symbols['Currency'] = self.symbols.index.map(lambda symbol: self.trades[self.trades['Symbol'] == symbol]['Currency'].iloc[0] if not self.trades[self.trades['Symbol'] == symbol].empty else None)
+            new_symbols = pd.DataFrame(all_symbols, columns=['Symbol'])
             added_trades = self.trades
+
+        new_symbols.set_index('Symbol', inplace=True)
+        new_symbols['Ticker'] = new_symbols.index
+        new_symbols['Change Date'] = pd.NaT
+        new_symbols['Currency'] = new_symbols.index.map(lambda symbol: self.trades[self.trades['Symbol'] == symbol]['Currency'].iloc[0] if not self.trades[self.trades['Symbol'] == symbol].empty else None)
+        self.symbols = pd.concat([self.symbols, new_symbols]).drop_duplicates()
 
         if len(added_trades) > 0:
             trade.adjust_for_splits(added_trades, self.actions)
@@ -74,7 +72,7 @@ class State:
         self.recompute_positions()
 
     # Apply ticker renames by consulting the symbol rename table        
-    def _apply_renames(self):
+    def apply_renames(self):
         def rename_symbols(df: pd.DataFrame, date_column: str) -> pd.DataFrame:
             df.drop(columns=['Ticker'], errors='ignore', inplace=True)
             df = df.merge(self.symbols[['Ticker', 'Change Date']], left_on='Symbol', right_index=True, how='left')
@@ -101,7 +99,7 @@ class State:
 
         # Now we can adjust the trades for the renames
         if len(renames) > 0:
-            self._apply_renames()
+            self.apply_renames()
             self.trades = trade.compute_accumulated_positions(self.trades)
 
         # Drop symbols that have no trades and are not mentioned in positions
