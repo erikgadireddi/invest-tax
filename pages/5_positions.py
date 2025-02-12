@@ -52,22 +52,52 @@ if state.trades is not None and not state.trades.empty:
         trades_display = st.dataframe(open_positions, hide_index=True, column_order=column_order, column_config=column_config)
     # Display any mismatches in open positions if detected
     mismatches = position.check_open_position_mismatches(shown_trades, state.positions, state.symbols, max_date)
+   
     renames = state.symbols[(state.symbols['Change Date'] <= max_date) & (state.symbols['Change Date'] >= min_date)]
-    renames['Year'] = renames['Change Date'].dt.year
-    if not renames.empty:
-        st.warning('Nalezeny přejmenování tickerů obchodovaných společností.')
-        column_order = ('Symbol', 'Ticker', 'Year')
-        column_config = {'Symbol': st.column_config.TextColumn("Původní", help="Původní symbol"), 
-                         'Ticker': st.column_config.TextColumn("Nový", help="Nový symbol"),
-                         'Year': st.column_config.NumberColumn("Rok", help="Rok, ve kterém byla provedena změna", format="%d")}
-        st.dataframe(renames, hide_index=True, column_order=column_order, column_config=column_config)
+    # Filter out renames that do not have a trade preceding its Change Date
+    renames = renames[renames.apply(lambda row: any([shown_trades[(shown_trades['Symbol'] == row.name) & (shown_trades['Date/Time'] < row['Change Date'])].shape[0] > 0]), axis=1)]
+
+    def show_rename_table(renames: pd.DataFrame, allow_edit: bool, caption: str = 'Nalezená přejmenování tickerů obchodovaných společností.'):
+        renames['Year'] = renames['Change Date'].dt.year
+        if not renames.empty:
+            st.warning(caption)
+            column_order = ('Symbol', 'Ticker', 'Year', 'Apply')
+            column_config = {'Symbol': st.column_config.TextColumn("Původní", help="Původní symbol"), 
+                            'Ticker': st.column_config.TextColumn("Nový", help="Nový symbol"),
+                            'Year': st.column_config.NumberColumn("Rok", help="Rok, ve kterém byla provedena změna", format="%d"),
+                            'Apply': st.column_config.CheckboxColumn("Použít", help="Použít nový symbol pro všechny transakce")}
+                            
+            if not allow_edit:
+                st.dataframe(renames, hide_index=True, column_order=column_order, column_config=column_config)
+            else:
+                def on_change():
+                    st.session_state['rename_changes_made'] = True
+                return st.data_editor(renames, hide_index=True, column_order=column_order, column_config=column_config, disabled=('Symbol', 'Ticker', 'Year'), on_change=on_change)
+
+    show_rename_table(renames, False)
+    guessed_renames = position.detect_renames_in_mismatches(mismatches, state.symbols)
+    if not guessed_renames.empty:
+        guessed_renames['Apply'] = False
+        guessed_renames = show_rename_table(guessed_renames, True, 'Odhadnutá přejmenování tickerů obchodovaných společností.')
+
+    if st.session_state.get('rename_changes_made', False):
+        if st.button("Aplikovat změny"):
+            for index, row in guessed_renames.iterrows():
+                if row['Apply']:
+                    state.symbols.loc[row['Symbol'], 'Ticker'] = row['Ticker']
+                    state.symbols.loc[row['Symbol'], 'Change Date'] = row['Change Date']
+            st.success("Změny byly úspěšně aplikovány.")
+            st.session_state['rename_changes_made'] = False
+            state.recompute_positions()
+            state.save_session()
+            st.rerun()
 
     mismatches['Quantity'] = mismatches['Quantity'].fillna(0)
     mismatches['Account Accumulated Quantity'] = mismatches['Account Accumulated Quantity'].fillna(0)
     if not mismatches.empty:
         st.error('Nalezeny nesrovnalosti v otevřených pozicích. Bude třeba doplnit chybějící obchody.')
         table_descriptor = ux.transaction_table_descriptor_native()
-        column_order = ('Date', 'Ticker', 'Account Accumulated Quantity', 'Quantity', 'Account', 'Date')
+        column_order = ('Date', 'Display Name', 'Account Accumulated Quantity', 'Quantity', 'Account', 'Date')
         table_descriptor['column_config']['Account Accumulated Quantity'] = st.column_config.NumberColumn("Počet dle transakcí", help="Spočítaná pozice ze všech nahraných transakcí", format="%f")
         table_descriptor['column_config']['Quantity'] = st.column_config.NumberColumn("Počet dle brokera", help="Pozice reportovaná brokerem v nahraném souboru", format="%f")
         table_descriptor['column_config']['Account'] = st.column_config.TextColumn("Účet u brokera", help="Název účtu, ke kterému se transakce vztahují. Každý účet má své vlastní pozice.")
