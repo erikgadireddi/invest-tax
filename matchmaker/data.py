@@ -12,6 +12,7 @@ def load_settings():
             st.session_state['settings'] = json.load(f)
 
 class State:
+    """ Hold the state of the application concerning imported trades and their subsequent processing. """
     def __init__(self):
         self.reset()  
 
@@ -21,6 +22,7 @@ class State:
         self.positions = pd.DataFrame()
         self.symbols = pd.DataFrame()
         self.paired_trades = pd.DataFrame()
+        self.imports = pd.DataFrame()
 
     def update(self, **kwargs):
         for key, value in kwargs.items():
@@ -32,6 +34,7 @@ class State:
         self.positions = st.session_state.positions if 'positions' in st.session_state else pd.DataFrame()
         self.symbols = st.session_state.symbols if 'symbols' in st.session_state else pd.DataFrame()
         self.paired_trades = st.session_state.paired_trades if 'paired_trades' in st.session_state else pd.DataFrame()
+        self.imports = st.session_state.imports if 'imports' in st.session_state else pd.DataFrame()
 
     def save_session(self):
         st.session_state.update(trades=self.trades)
@@ -39,8 +42,13 @@ class State:
         st.session_state.update(positions=self.positions)
         st.session_state.update(symbols=self.symbols)
         st.session_state.update(paired_trades=self.paired_trades)
+        st.session_state.update(imports=self.imports)
 
     def recompute_positions(self, added_trades = None):
+        """ 
+        Recompute past and present positions of the entire portfolio. 
+        Includes modifying the trades by applying splits and symbol renames.
+        """
         if added_trades is not None:
             new_symbols = pd.DataFrame(added_trades['Symbol'].unique(), columns=['Symbol'])
         else:
@@ -73,8 +81,8 @@ class State:
         self.trades = pd.concat([self.trades, new_trades])
         self.recompute_positions()
 
-    # Apply ticker renames by consulting the symbol rename table        
     def apply_renames(self):
+        """ Apply symbol renames by looking them up in the symbols table . """
         def rename_symbols(df: pd.DataFrame, date_column: str) -> pd.DataFrame:
             df.drop(columns=['Ticker'], errors='ignore', inplace=True)
             df = df.merge(self.symbols[['Ticker', 'Change Date']], left_on='Symbol', right_index=True, how='left')
@@ -89,6 +97,10 @@ class State:
         self.positions = rename_symbols(self.positions, 'Date')
 
     def detect_and_apply_renames(self):
+        """ 
+        Consult the rename history dataset and and apply it to symbols that do not have an override already set.
+        Then perform the renames and recompute the position history.
+        """
         # Load renames table
         renames_table = st.session_state['settings']['rename_history_dir'] + '/renames.csv'
         renames = pd.read_csv(renames_table, parse_dates=['Change Date'])
@@ -108,6 +120,24 @@ class State:
             self.apply_renames()
             self.trades = trade.compute_accumulated_positions(self.trades)
 
-        # Drop symbols that have no trades and are not mentioned in positions
-        # self.symbols = self.symbols[self.symbols['Ticker'].isin(self.trades['Ticker']) | self.symbols['Ticker'].isin(self.positions['Ticker'])
-        #                            | self.symbols['Ticker'].isin(self.trades['Ticker']) | self.symbols.index.isin(self.positions['Ticker'])]
+    def merge_import_intervals(self):
+        """ Merge intervals of imported trades together if they form a largerc ontinuous interval. """
+        self.imports.sort_values(by=['Account', 'From'], inplace=True)
+        merged_imports = []
+        current_import = None
+
+        for _, row in self.imports.iterrows():
+            if current_import is None:
+                current_import = row
+            elif current_import['Account'] == row['Account'] and current_import['To'] >= row['From'] - pd.Timedelta(days=1):
+                current_import['To'] = max(current_import['To'], row['To'])
+                current_import['Trade Count'] += row['Trade Count']
+            else:
+                merged_imports.append(current_import)
+                current_import = row
+
+        if current_import is not None:
+            merged_imports.append(current_import)
+
+        self.imports = pd.DataFrame(merged_imports)
+        return self.imports

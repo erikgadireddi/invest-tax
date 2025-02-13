@@ -83,7 +83,8 @@ def main():
     if uploaded_files:
         for uploaded_file in uploaded_files:
             import_state.write('Importuji transakce...')
-            imported_trades, imported_actions, imported_positions = import_trade_file(uploaded_file)
+            import_period, imported_trades, imported_actions, imported_positions = import_trade_file(uploaded_file)
+            state.imports = pd.concat([state.imports, import_period]).drop_duplicates()
             if len(imported_actions) > 0:
                 state.actions = pd.concat([imported_actions, state.actions])
             # Merge open positions and drop duplicates
@@ -96,8 +97,10 @@ def main():
             import_message = f'Importováno :green[{len(state.trades) - trades_count}] obchodů.'
             import_state.write(import_message)
 
+    if loaded_count > 0:
         import_state.write(f'Nalezeno :blue[{loaded_count}] obchodů, z nichž :green[{len(state.trades) - trades_count}] je nových.')
         state.actions.drop_duplicates(inplace=True)
+        state.merge_import_intervals()
         state.recompute_positions()
         state.save_session()
 
@@ -105,7 +108,7 @@ def main():
         return
     
     state.trades.sort_values(by=['Symbol', 'Date/Time'], inplace=True)
-    st.caption(f':blue[{len(state.trades)}] nalezených obchodů.')
+    st.caption(f':blue[{len(state.trades)}] nahraných obchodů celkem')
     st.dataframe(data=styling.format_trades(state.trades), hide_index=True, width=1100, height=500, column_order=('Display Name', 'Date/Time', 'Action', 'Quantity', 'Currency', 'T. Price', 'Proceeds', 'Comm/Fee', 'Realized P/L', 'Accumulated Quantity', 'Split Ratio'),
                     column_config={
                         'Display Name': st.column_config.TextColumn("Název", help="Název instrumentu"),
@@ -119,6 +122,16 @@ def main():
                         'Accumulated Quantity': st.column_config.NumberColumn("Pozice", help="Otevřené pozice po této transakci. Negativní znamenají shorty. "
                                                                                 "Pokud toto číslo nesedí s realitou, v importovaných transakcích se nenacházejí všechny obchody", format="%f"),
                         'Split Ratio': st.column_config.NumberColumn("Split", help="Poměr akcií po splitu", format="%f"),})
+
+    with st.expander(f'Účty, z kterých jsme nahráli data (:blue[{len(state.imports['Account'].unique())}])'):
+        st.dataframe(data=state.imports, hide_index=True, 
+                    column_order=('Account', 'From', 'To', 'Trade Count'), 
+                    column_config={
+                        'Account': st.column_config.TextColumn("Účet", help="Název importovaného účtu."),
+                        'From': st.column_config.DateColumn("Od", help="Začátek období"), 
+                        'To': st.column_config.DateColumn("Do", help="Začátek období"),
+                        'Trade Count': st.column_config.NumberColumn("Počet obchodů", help="Počet obchodů v tomto období", format="%d")
+                        })
 
     # Show imported splits
     if len(state.actions) > 0:
@@ -166,60 +179,6 @@ def main():
         st.button('🧹 Smazat obchody', on_click=lambda: clear_uploads(), use_container_width=True)
     
     return
-
-    # Load data
-    sell_buy_pairs = None
-    process_years = None
-    preserve_years = None
-
-    daily_rates = load_daily_rates(args.settings_dir)
-    yearly_rates = load_yearly_rates(args.settings_dir)
-
-    if args.load_trades is not None:
-        trades = pd.read_csv(args.load_trades)
-        trades = convert_trade_columns(trades)
-        trades.set_index('Hash', inplace=True)
-    if args.import_trades_dir is not None:
-        trades = import_trades(args.import_trades_dir, trades, args.tickers_dir)
-    if args.load_matched_trades is not None:
-        sell_buy_pairs = load_buy_sell_pairs(args.load_matched_trades)
-    if args.process_years is not None:
-        process_years = [int(x) for x in args.process_years.split(',')]
-    if args.preserve_years is not None:
-        preserve_years = [int(x) for x in args.preserve_years.split(',')]
-
-    # Pair buy and sell orders
-    buys, sells, sell_buy_pairs = pair_buy_sell(trades, sell_buy_pairs, args.strategy, process_years, preserve_years)
-    paired_sells = sells[sells['Uncovered Quantity'] == 0]
-    unpaired_sells = sells[sells['Uncovered Quantity'] != 0]
-    paired_buys = buys[buys['Uncovered Quantity'] == 0]
-    unpaired_buys = buys[buys['Uncovered Quantity'] != 0]
-
-    # Save unpaired sells to CSV
-    sort_columns = ['Symbol', 'Date/Time']
-    if args.save_trades:
-        trades.drop(['Covered Quantity', 'Uncovered Quantity'], axis=1, inplace=False).sort_values(by=sort_columns).round(3).to_csv(args.save_trades, index=True)
-    if args.save_trade_overview_dir:
-        sells.round(3).sort_values(by=sort_columns).to_csv(args.save_trade_overview_dir + '/sells.csv', index=False)
-        paired_sells.round(3).sort_values(by=sort_columns).to_csv(args.save_trade_overview_dir + '/sells.paired.csv', index=False)
-        unpaired_sells.round(3).sort_values(by=sort_columns).to_csv(args.save_trade_overview_dir + '/sells.unpaired.csv', index=False)
-        buys.round(3).sort_values(by=sort_columns).to_csv(args.save_trade_overview_dir + '/buys.csv', index=False)
-        paired_buys.round(3).sort_values(by=sort_columns).to_csv(args.save_trade_overview_dir + '/buys.paired.csv', index=False)
-        unpaired_buys.round(3).sort_values(by=sort_columns).to_csv(args.save_trade_overview_dir + '/buys.unpaired.csv', index=False)
-    if args.save_matched_trades:
-        sell_buy_pairs.round(3).to_csv(args.save_matched_trades, index=False)
-        yearly_pairs = add_czk_conversion(sell_buy_pairs, yearly_rates, True)
-        daily_pairs = add_czk_conversion(sell_buy_pairs, daily_rates, False)
-        for year in sorted(trades['Year'].unique()):
-            for pairs in [yearly_pairs, daily_pairs]:
-                filtered_pairs = pairs[(pairs['Sell Time'].dt.year == year)].sort_values(by=['Symbol','Sell Time', 'Buy Time'])
-                taxed_pairs = filtered_pairs[filtered_pairs['Taxable'] == 1]
-                pairing_type = 'yearly' if pairs is yearly_pairs else 'daily'
-                print(f'Pairing for year {year} using {pairing_type} rates in CZK: Proceeds {taxed_pairs["CZK Proceeds"].sum().round(0)}, '
-                    f'Cost {taxed_pairs["CZK Cost"].sum().round(0)}, Revenue {taxed_pairs["CZK Revenue"].sum().round(0)}, '
-                    f'Untaxed pairs: {len(filtered_pairs) - len(taxed_pairs)}')
-                filtered_pairs[filtered_pairs['Sell Time'].dt.year == year].round(3).to_csv(args.save_matched_trades + ".{0}.{1}.csv".format(year, pairing_type), index=False)
-            unpaired_sells[unpaired_sells['Year'] == year].round(3).to_csv(args.save_matched_trades + ".{0}.unpaired.csv".format(year), index=False)
 
 if __name__ == "__main__":
     main()
