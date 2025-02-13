@@ -1,21 +1,25 @@
-import glob
 import re
 import pandas as pd
-import streamlit as st
 import numpy as np
-from io import StringIO
+import io
 from matchmaker.trade import normalize_trades
 import matchmaker.actions as actions
 import matchmaker.position as position
 
-def dataframe_from_prefixed_lines(line_dict, prefix):
+def dataframe_from_prefixed_lines(line_dict: dict, prefix: str) -> pd.DataFrame:
+    """
+    Create a DataFrame from lines with the same prefix. Expects a dictionary of lines parsed from a CSV file.
+    """
     if prefix not in line_dict:
         return pd.DataFrame()
-    file_data = StringIO(''.join(line_dict[prefix]))
+    file_data = io.StringIO(''.join(line_dict[prefix]))
     return pd.read_csv(file_data)
 
 # Parses the CSV into a dictionary of lines with the same prefix
-def parse_csv_into_prefixed_lines(file):
+def parse_csv_into_prefixed_lines(file: io.BytesIO) -> dict:
+    """
+    Parse the CSV into a dictionary of lines
+    """
     file.seek(0)
     file = [line.decode('utf-8') for line in file]
     prefix_dict = {}
@@ -26,7 +30,10 @@ def parse_csv_into_prefixed_lines(file):
         prefix_dict[key].append(line)
     return prefix_dict
 
-def convert_option_names(df):
+def convert_option_names(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Convert raw option names into detailed option fields
+    """
     if 'Option Name' not in df.columns:
         return df
     # Vectorized parsing of option names
@@ -60,7 +67,10 @@ def convert_option_names(df):
 
 # Data begins on the second line
 # Example line: Trades,Data,Order,Stocks,CZK,CEZ,"2023-08-03, 08:44:03",250,954,960,-238500,-763.2,239263.2,0,1500,O
-def import_trades(file):
+def import_trades(file: io.BytesIO) -> pd.DataFrame:
+    """
+    Import the trades section from IBKR format.
+    """
     df = dataframe_from_prefixed_lines(file, 'Trades')
     if df.empty:
         df = pd.DataFrame(columns=['Trades', 'Header', 'DataDiscriminator', 'Asset Category', 'Currency', 'Symbol', 'Date/Time', 'Quantity', 'T. Price', 'C. Price', 'Proceeds', 'Comm/Fee', 'Basis', 'Realized P/L', 'MTM P/L', 'Code'])
@@ -73,14 +83,17 @@ def import_trades(file):
     df.drop(columns=['Trades', 'Header', 'DataDiscriminator', 'Asset Category',], inplace=True)
     return normalize_trades(df)
 
-def import_corporate_actions(file):
+def import_corporate_actions(file: io.BytesIO) -> pd.DataFrame:
+    """
+    Import corporate actions from IBKR format.
+    """
     df = dataframe_from_prefixed_lines(file, 'Corporate Actions')
     if df.empty:
         df = pd.DataFrame(columns=['Corporate Actions', 'Header', 'Asset Category', 'Currency', 'Report Date', 'Date/Time', 'Description', 'Quantity', 'Proceeds', 'Value', 'Realized P/L', 'Action', 'Symbol', 'Ratio', 'Code', 'Target'])
     df = df[df['Asset Category'] == 'Stocks']
     df.drop(columns=['Corporate Actions', 'Header', 'Asset Category'], inplace=True)
     
-    def parse_action_text(text):
+    def parse_action_text(text: str) -> tuple:
         action, symbol, ratio, target = parse_split_text(text)
         if not action:
             action, symbol, ratio, target = parse_spinoff_text(text)
@@ -96,21 +109,21 @@ def import_corporate_actions(file):
             action, symbol, ratio, target = 'Unknown', None, None, None
         return action, symbol, ratio, target
     
-    def parse_split_text(text):
+    def parse_split_text(text: str) -> tuple:
         match = re.search(r'([\w\.]+)\(\w+\) Split (\d+) for (\d+)', text, re.IGNORECASE)
         if match:
             ratio = float(match.group(3)) / float(match.group(2))
             return 'Split', match.group(1), ratio, None
         return None, None, None, None
     
-    def parse_spinoff_text(text):
+    def parse_spinoff_text(text: str) -> tuple:
         match = re.search(r'^(\w+)\(\w+\) Spinoff\s+(\d+) for (\d+) \((\w+),.+\)', text, re.IGNORECASE)
         if match:
             ratio = float(match.group(2)) / float(match.group(3))
             return 'Spinoff', match.group(4), ratio, None
         return None, None, None, None
     
-    def parse_acquisition_text(text):
+    def parse_acquisition_text(text: str) -> tuple:
         # Stock bought by another: ATVI(US00507V1098) Merged(Acquisition) FOR USD 95.00 PER SHARE
         match = re.search(r'^(\w+)\(\w+\) Merged\(Acquisition\) FOR (\w+) (\d+\.\d+) PER SHARE', text, re.IGNORECASE)
         if match:
@@ -131,7 +144,10 @@ def import_corporate_actions(file):
     df = actions.convert_action_columns(df)
     return df
 
-def import_open_positions(file, date_from, date_to):
+def import_open_positions(file: io.BytesIO, date_from: pd.Timestamp, date_to: pd.Timestamp) -> pd.DataFrame:
+    """
+    Import open positions from IBKR format.
+    """
     # Old format that doesn't reflect symbol changes
     df = dataframe_from_prefixed_lines(file, 'Mark-to-Market Performance Summary')
     if df.empty:
@@ -145,7 +161,10 @@ def import_open_positions(file, date_from, date_to):
     df['Current Date'] = date_to
     return position.convert_position_history_columns(df)
 
-def import_transfers(file):
+def import_transfers(file: io.BytesIO) -> pd.DataFrame:
+    """
+    Import transfers from IBKR format.
+    """
     df = dataframe_from_prefixed_lines(file, 'Transfers')
     if df.empty:
         # Transfers,Header,Asset Category,,Currency,Symbol,Date,Type,Direction,Xfer Company,Xfer Account,Qty,Xfer Price,Market Value,Realized P/L,Cash Amount,Code
@@ -166,7 +185,10 @@ def import_transfers(file):
     df.drop(columns=['Transfers', 'Header', 'Asset Category', 'Date', 'Type', 'Direction', 'Xfer Company', 'Xfer Account', 'Qty', 'Xfer Price', 'Market Value', 'Cash Amount', 'Code'], inplace=True)
     return normalize_trades(df)
 
-def generate_transfers_from_actions(actions):
+def generate_transfers_from_actions(actions: pd.DataFrame) -> pd.DataFrame:
+    """
+    Generate asset transfers from a list of corporate actions.
+    """
     spinoffs = actions[(actions['Action'] == 'Spinoff') | (actions['Action'] == 'Acquisition')]
     transfers = pd.DataFrame()
     for index, spinoff in spinoffs.iterrows():
@@ -189,7 +211,10 @@ def generate_transfers_from_actions(actions):
     return normalize_trades(transfers)
 
 # @st.cache_data()
-def import_activity_statement(file):
+def import_activity_statement(file: io.BytesIO) -> tuple:
+    """
+    Import the entire IBKR activity statement, returning dataframes for trades, actions and open positions.
+    """
     file.seek(0)
     # 2nd line: Statement,Data,Title,Activity Statement
     # 3rd line: Statement,Data,Period,"April 13, 2020 - April 12, 2021"
@@ -219,17 +244,11 @@ def import_activity_statement(file):
     trades['Account'].fillna(account, inplace=True)
     open_positions['Account'] = account
 
-    return trades, actions, open_positions
+    imported = pd.DataFrame({
+        'Account': [account],
+        'From': [from_date],
+        'To': [to_date],
+        'Trade Count': [len(trades)],
+    })
 
-def import_all_statements(directory, tickers_dir=None):
-    # Go over all 'Activity' exports that contain all data and extract only the 'Trades' part
-    data = None
-    for f in glob.glob(directory + '/U*_*_*.csv'):
-        # Only if matching U12345678_[optional_]20230101_20231231.csv
-        if(re.match(r'.+U(\d+)_(\d{8})_(\d{8})', f)):
-            # Read the file 
-            with open(f, 'r') as file:
-                data = import_activity_statement(file, data, tickers_dir)
-                yield data
-        else:
-            print('Skipping file:', f)
+    return imported, trades, actions, open_positions
