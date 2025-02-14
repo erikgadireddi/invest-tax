@@ -51,7 +51,7 @@ def add_trades_editor(state : data.State, selected_trade, key=None, callback=Non
         st.caption('Zde můžete přidat chybějící nákup(y) k prodeji')
         # Create a dataframe representing the new trade
         def create_dataframe(trades, symbol, date, quantity, price, target):
-            currency = state.symbols[state.symbols['Ticker'] == symbol]['Currency'].values[0]
+            currency = state.symbols[state.symbols.index == symbol]['Currency'].values[0]
             return pd.DataFrame({'Symbol': [symbol], 'Currency': currency, 'Date/Time': [pd.to_datetime(date)], 'Quantity': [quantity], 
                         'T. Price': [price], 'C. Price': [price], 'Action': ['Open'], 'Type': ['Long'], 'Account': [selected_trade['Account']],
                         'Proceeds': [-quantity*price], 'Target': [target], 'Comm/Fee': [0], 'Basis': [0], 'Realized P/L': [0], 'MTM P/L': [0]})
