@@ -45,7 +45,8 @@ def add_czk_conversion_to_trades(trades, rates, use_yearly_rates=True):
     if use_yearly_rates:
         trades['CZK Rate'] = trades.apply(lambda row: rates.loc[row['Date/Time'].year, row['Currency']] if row['Date/Time'].year in rates.index else np.nan, axis=1)
     else:
-        trades['CZK Rate'] = trades.apply(lambda row: rates.loc[rates.index[rates.index <= pd.to_datetime(row['Date/Time'].date())].max(), row['Currency']], axis=1)
+        trades['CZK Rate'] = trades.apply(lambda row: rates.loc[rates.index[rates.index <= pd.to_datetime(row['Date/Time'].date())].max(), 
+                                                                row['Currency']] if not rates.index[rates.index <= pd.to_datetime(row['Date/Time'].date())].empty else np.nan, axis=1)
     trades['CZK Proceeds'] = trades['Proceeds'] *  trades['CZK Rate']
     trades['CZK Commission'] = trades['Comm/Fee'] * trades['CZK Rate']
     trades['CZK Profit'] = trades['Realized P/L'] * trades['CZK Rate']
