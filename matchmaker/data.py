@@ -17,13 +17,13 @@ class State:
         self.reset()  
 
     def reset(self):
-        """ History of all trades, including stock and option transfers, exercises, and all related operations. """
+        """ History of all trades, including stock and option transfers, exercises, assignments, and all related operations. Index: hash of the entire row  """
         self.trades = pd.DataFrame()
-        """ History of corporate actions, including stock splits, spin-offs, acquisitions, etc. """
+        """ History of corporate actions, including stock splits, spin-offs, acquisitions, etc."""
         self.actions = pd.DataFrame()
         """ Open positions snapshots parsed from the imported data, usually from the end of the imported intervals """
         self.positions = pd.DataFrame()
-        """ Symbols appearing in the trades and positions, their currency and optionally their renamed name. Used to group together multiple symbols that refer to the same asset. """
+        """ Symbols appearing in the trades and positions, their currency and optionally their renamed name. Used to group together multiple symbols that refer to the same asset. Index: raw symbol present in statements """
         self.symbols = pd.DataFrame()
         """ Trades that were paired together to form taxable pairs. """
         self.paired_trades = pd.DataFrame()
