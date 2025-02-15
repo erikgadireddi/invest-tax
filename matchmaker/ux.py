@@ -51,7 +51,7 @@ def add_trades_editor(state : data.State, selected_trade, key=None, callback=Non
         st.caption('Zde můžete přidat chybějící nákup(y) k prodeji')
         # Create a dataframe representing the new trade
         def create_dataframe(trades, symbol, date, quantity, price, target):
-            currency = state.symbols[state.symbols['Ticker'] == symbol]['Currency'].values[0]
+            currency = state.symbols[state.symbols['Ticker'] == symbol]['Currency'].values[-1]
             return pd.DataFrame({'Symbol': [symbol], 'Currency': currency, 'Date/Time': [pd.to_datetime(date)], 'Quantity': [quantity], 
                         'T. Price': [price], 'C. Price': [price], 'Action': ['Open'], 'Type': ['Long'], 'Account': [selected_trade['Account']],
                         'Proceeds': [-quantity*price], 'Target': [target], 'Comm/Fee': [0], 'Basis': [0], 'Realized P/L': [0], 'MTM P/L': [0]})
@@ -78,10 +78,11 @@ def add_trades_editor(state : data.State, selected_trade, key=None, callback=Non
 
         with symbolcol:
             if symbols is None:
-                symbols = state.trades['Symbol'].unique()
+                symbols = sorted(state.trades['Symbol'].unique())
             else:
-                symbols = symbols.unique()
-            st.selectbox('Symbol', symbols, index=symbols.tolist().index(selected_trade['Symbol']), key=key+'_new_symbol')
+                symbols = sorted(symbols.unique())
+            
+            st.selectbox('Symbol', symbols, index=symbols.index(selected_trade['Symbol']), key=key+'_new_symbol')
         with datecol:
             st.date_input('Datum nákupu', value=selected_trade['Date/Time'], max_value=state.trades['Date/Time'].max(), key=key+'_new_date')
         with quantitycol:

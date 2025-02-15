@@ -84,7 +84,10 @@ class State:
 
     def add_manual_trades(self, new_trades):
         new_trades['Manual'] = True
+        new_trades['Ticker'] = new_trades['Symbol']
+        new_trades['Display Name'] = new_trades['Symbol']
         self.trades = pd.concat([self.trades, new_trades])
+        self.trades.drop_duplicates(inplace=True) # Someone could put in two identical manual trades as there is a preset date. Let's remove them as they would cause trouble with duplicate indices.
         self.recompute_positions()
 
     def apply_renames(self):
@@ -99,7 +102,9 @@ class State:
             df.drop(columns=['Change Date'], inplace=True)
             return df
 
-        self.trades = rename_symbols(self.trades.reset_index().rename(columns={'index': 'Hash'}), 'Date/Time').set_index('Hash')
+        manual_trades = self.trades[self.trades['Manual'] == True]
+        imported_trades = rename_symbols(self.trades[self.trades['Manual'] == False].reset_index().rename(columns={'index': 'Hash'}), 'Date/Time').set_index('Hash')
+        self.trades = pd.concat([imported_trades, manual_trades])
         self.positions = rename_symbols(self.positions, 'Date')
 
     def detect_and_apply_renames(self):
@@ -119,7 +124,7 @@ class State:
         updated_symbols['Ticker'] = updated_symbols['New'].combine_first(self.symbols['Ticker'])
         updated_symbols.drop(columns=['New'], inplace=True)
 
-        self.symbols = pd.concat([kept_symbols, updated_symbols]).drop_duplicates()
+        self.symbols = pd.concat([kept_symbols, updated_symbols]).drop_duplicates().sort_values(by='Change Date', na_position='first')
 
         # Now we can adjust the trades for the renames
         if len(renames) > 0:
