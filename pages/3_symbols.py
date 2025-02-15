@@ -42,9 +42,11 @@ if state.trades is not None and not state.trades.empty:
         table_descriptor = ux.transaction_table_descriptor_native()
         trades_display = st.dataframe(styling.format_trades(shown_trades), hide_index=True, column_config=table_descriptor['column_config'], column_order=table_descriptor['column_order'])
         profit = shown_trades['Realized P/L'].sum()
-        held_position = shown_trades[shown_trades['Display Name'] == symbol]['Accumulated Quantity'].iloc[-1]
-        if held_position != 0:
-            st.markdown(f'**Držené pozice: :blue[{held_position:.0f}]**')
+        stock_transactions = shown_trades[shown_trades['Display Name'] == symbol]
+        if not stock_transactions.empty:
+            held_position = stock_transactions['Accumulated Quantity'].iloc[-1]
+            if held_position != 0:
+                st.markdown(f'**Držené pozice: :blue[{held_position:.0f}]**')
         st.caption(f'Realizovaný profit dle brokera: :green[{profit:.0f}] {shown_trades["Currency"].iloc[0]}')
             
         manual_trades = shown_trades[shown_trades['Manual'] == True]
