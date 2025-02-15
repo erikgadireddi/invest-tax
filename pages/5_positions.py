@@ -55,7 +55,8 @@ if state.trades is not None and not state.trades.empty:
    
     renames = state.symbols[(state.symbols['Change Date'] <= max_date) & (state.symbols['Change Date'] >= min_date)]
     # Filter out renames that do not have a trade preceding its Change Date
-    renames = renames[renames.apply(lambda row: any([shown_trades[(shown_trades['Symbol'] == row.name) & (shown_trades['Date/Time'] < row['Change Date'])].shape[0] > 0]), axis=1)]
+    if not renames.empty:
+        renames = renames[renames.apply(lambda row: any([shown_trades[(shown_trades['Symbol'] == row.name) & (pd.isna(row['Change Date']) | (shown_trades['Date/Time'] < row['Change Date']))].shape[0] > 0]), axis=1)]
 
     def show_rename_table(renames: pd.DataFrame, allow_edit: bool, caption: str = 'Nalezená přejmenování tickerů obchodovaných společností.'):
         renames['Year'] = renames['Change Date'].dt.year

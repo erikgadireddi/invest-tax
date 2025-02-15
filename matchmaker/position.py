@@ -60,12 +60,11 @@ def check_open_position_mismatches(trades: pd.DataFrame, positions: pd.DataFrame
         mismatches = pd.concat([mismatches, new_mismatches])
 
     if mismatches.empty:
-        return mismatches, pd.DataFrame()
+        return mismatches
 
-    mismatches.drop_duplicates(subset=['Ticker', 'Date'], inplace=True)
+    mismatches.drop_duplicates(subset=['Ticker', 'Display Name', 'Symbol', 'Date'], inplace=True)
     mismatches.reset_index(drop=True, inplace=True)
     mismatches['Date'] = mismatches['Date/Time Positions'].fillna(mismatches['Date/Time Trades'])
-    guesses = pd.DataFrame(columns=['From', 'To', 'Action'])
     # Compute the date range for each symbol activity so we make filter out overlapping symbols from the guesses
     agg_funcs = {
         'Date/Time': ['min', 'max']
@@ -77,7 +76,11 @@ def check_open_position_mismatches(trades: pd.DataFrame, positions: pd.DataFrame
     return mismatches
 
 def detect_renames_in_mismatches(mismatches: pd.DataFrame, symbols: pd.DataFrame) -> pd.DataFrame:
+    if mismatches.empty:
+        return pd.DataFrame()
     guesses = pd.DataFrame(columns=['From', 'To', 'Action', 'Change Date'])
+    mismatches = mismatches[mismatches['Display Name'].isin(symbols.index)]
+    
     grouped_mismatches = mismatches.sort_values(by='Last Activity').groupby([mismatches['Quantity Mismatch'].abs(), mismatches['Snapshot Date']])
     for name, group in grouped_mismatches:
         if len(group) == 2:
