@@ -5,6 +5,7 @@ import json
 import pandas as pd
 import numpy as np
 import streamlit as st
+import hashlib
 
 def load_settings():
     if st.session_state.get('settings') is None:
@@ -34,6 +35,10 @@ class State:
         for key, value in kwargs.items():
             setattr(self, key, value)
 
+    def get_state(self):
+        """ Used for streamlit caching. """
+        return (self.trades, self.actions, self.positions, self.symbols, self.imports)
+    
     def load_session(self):
         self.trades = st.session_state.trades if 'trades' in st.session_state else pd.DataFrame()
         self.actions = st.session_state.actions if 'actions' in st.session_state else pd.DataFrame()
@@ -152,3 +157,4 @@ class State:
 
         self.imports = pd.DataFrame(merged_imports)
         return self.imports
+    
