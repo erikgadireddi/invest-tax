@@ -98,13 +98,14 @@ class State:
     def apply_renames(self):
         """ Apply symbol renames by looking them up in the symbols table . """
         def rename_symbols(df: pd.DataFrame, date_column: str) -> pd.DataFrame:
-            df.drop(columns=['Ticker'], errors='ignore', inplace=True)
+            df.rename(columns={'Ticker': 'New Ticker'}, inplace=True) # Preserve the original position so the exports are not affected
             df = df.merge(self.symbols[['Ticker', 'Change Date']], left_on='Symbol', right_index=True, how='left')
-            df['Ticker'] = np.where(
+            df['New Ticker'] = np.where(
                 df['Change Date'].isna() | (df['Change Date'] > df[date_column]),
                 df['Ticker'], 
                 df['Symbol'])
-            df.drop(columns=['Change Date'], inplace=True)
+            df.drop(columns=['Ticker', 'Change Date'], inplace=True)
+            df.rename(columns={'New Ticker': 'Ticker'}, inplace=True)
             return df
 
         manual_trades = self.trades[self.trades['Manual'] == True]
