@@ -83,17 +83,17 @@ def main():
     if uploaded_files:
         for uploaded_file in uploaded_files:
             import_state.write('Importuji transakce...')
-            import_period, imported_trades, imported_actions, imported_positions = import_trade_file(uploaded_file)
-            state.imports = pd.concat([state.imports, import_period]).drop_duplicates()
-            if len(imported_actions) > 0:
-                state.actions = pd.concat([imported_actions, state.actions])
+            imported = import_trade_file(uploaded_file)
+            state.imports = pd.concat([state.imports, imported.imports]).drop_duplicates()
+            if len(imported.actions) > 0:
+                state.actions = pd.concat([imported.actions, state.actions])
             # Merge open positions and drop duplicates
-            state.positions = pd.concat([imported_positions, state.positions])
+            state.positions = pd.concat([imported.positions, state.positions])
             state.positions.drop_duplicates(subset=['Symbol', 'Date'], inplace=True)
             state.positions.reset_index(drop=True, inplace=True)
-            loaded_count += len(imported_trades)
-            import_state.write(f'Slučuji :blue[{len(imported_trades)}] obchodů...')
-            state.trades = trade.merge_trades(state.trades, imported_trades)
+            loaded_count += len(imported.trades)
+            import_state.write(f'Slučuji :blue[{len(imported.trades)}] obchodů...')
+            state.trades = trade.merge_trades(imported.trades, state.trades)
             import_message = f'Importováno :green[{len(state.trades) - trades_count}] obchodů.'
             import_state.write(import_message)
 

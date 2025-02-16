@@ -14,10 +14,10 @@ def is_snapshot(file):
     return header == 'Matchmaker snapshot\n'
 
 sections = [
-    ('Trades',  lambda state: state.trades.to_csv(), lambda data, state: setattr(state, 'trades', trade.convert_trade_columns(pd.read_csv(io.StringIO(data)).set_index('Hash')))),
+    ('Trades',  lambda state: state.trades.to_csv(index_label='Hash'), lambda data, state: setattr(state, 'trades', trade.convert_trade_columns(pd.read_csv(io.StringIO(data)).set_index('Hash')))),
     ('Actions', lambda state: state.actions.to_csv(index=False), lambda data, state: setattr(state, 'actions', action.convert_action_columns(pd.read_csv(io.StringIO(data))))),
     ('Position History', lambda state: state.positions.to_csv(index=False), lambda data, state: setattr(state, 'positions', position.convert_position_history_columns(pd.read_csv(io.StringIO(data))))),
-    ('Symbols', lambda state: state.symbols.to_csv(), lambda data, state: setattr(state, 'symbols', pd.read_csv(io.StringIO(data)).set_index('Symbol'))),
+    ('Symbols', lambda state: state.symbols.to_csv(index_label='Symbol'), lambda data, state: setattr(state, 'symbols', pd.read_csv(io.StringIO(data)).set_index('Symbol'))),
     ('Imports', lambda state: state.imports.to_csv(index=False), lambda data, state: setattr(state, 'imports', pd.read_csv(io.StringIO(data))))
 ]
 
@@ -56,7 +56,7 @@ def load_snapshot(file: io.BytesIO) -> data.State:
 
     state = data.State()
     for section_name, _, deserialize in sections:
-        if section_name in sections_data:
+        if section_name in sections_data and sections_data[section_name].strip():
             deserialize(sections_data[section_name], state)
 
     return state
