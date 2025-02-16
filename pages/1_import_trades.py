@@ -123,7 +123,7 @@ def main():
                         'Accumulated Quantity': st.column_config.NumberColumn("Pozice", help="Otevřené pozice po této transakci. Negativní znamenají shorty. "
                                                                                 "Pokud toto číslo nesedí s realitou, v importovaných transakcích se nenacházejí všechny obchody", format="%f"),
                         'Split Ratio': st.column_config.NumberColumn("Split", help="Poměr akcií po splitu", format="%f"),})
-
+    
     account_count = len(state.imports['Account'].unique())
     with st.expander(f"Účty, z kterých jsme nahráli data (:blue[{account_count}])"):
         st.dataframe(data=state.imports, hide_index=True, 
