@@ -67,13 +67,14 @@ class State:
             new_symbols = pd.DataFrame(all_symbols, columns=['Symbol'])
             added_trades = self.trades
 
+        # Populate the symbols table with symbols in these trades
         new_symbols.set_index('Symbol', inplace=True)
         new_symbols['Ticker'] = new_symbols.index
         new_symbols['Change Date'] = pd.NaT
         new_symbols['Currency'] = new_symbols.index.map(lambda symbol: self.trades[self.trades['Symbol'] == symbol]['Currency'].iloc[0] if not self.trades[self.trades['Symbol'] == symbol].empty else None)
         self.symbols = pd.concat([self.symbols, new_symbols]).drop_duplicates()
         # Auto-generated symbols need to yield priority to possibly manually added symbols
-        self.symbols = self.symbols[~self.symbols.index.duplicated(keep='first')]
+        self.symbols = self.symbols[~self.symbols.duplicated(keep='first')]
 
         if len(added_trades) > 0:
             trade.adjust_for_splits(added_trades, self.actions)
@@ -98,14 +99,16 @@ class State:
     def apply_renames(self):
         """ Apply symbol renames by looking them up in the symbols table . """
         def rename_symbols(df: pd.DataFrame, date_column: str) -> pd.DataFrame:
-            df.rename(columns={'Ticker': 'New Ticker'}, inplace=True) # Preserve the original position so the exports are not affected
-            df = df.merge(self.symbols[['Ticker', 'Change Date']], left_on='Symbol', right_index=True, how='left')
-            df['New Ticker'] = np.where(
-                df['Change Date'].isna() | (df['Change Date'] > df[date_column]),
-                df['Ticker'], 
-                df['Symbol'])
-            df.drop(columns=['Ticker', 'Change Date'], inplace=True)
-            df.rename(columns={'New Ticker': 'Ticker'}, inplace=True)
+            
+            # Symbols contain a history of renames of each symbol. We need to select the most recent rename that is older than the trade date.
+            # Entries with no change date are considered to be the original symbol and applies if no other row matches.
+            df['Ticker'] = df.apply(
+                lambda row: self.symbols.loc[
+                    (self.symbols.index == row['Symbol']) & 
+                    ((self.symbols['Change Date'].isna()) | (self.symbols['Change Date'] >= row[date_column]))
+                ].sort_values(by='Change Date', na_position='last').iloc[-1]['Ticker'],
+                axis=1
+            )
             return df
 
         manual_trades = self.trades[self.trades['Manual'] == True]
@@ -118,19 +121,21 @@ class State:
         Consult the rename history dataset and and apply it to symbols that do not have an override already set.
         Then perform the renames and recompute the position history.
         """
-        # Load renames table
+        # Load renames table and adjust to match the symbols table
         renames_table = st.session_state['settings']['rename_history_dir'] + '/renames.csv'
         renames = pd.read_csv(renames_table, parse_dates=['Change Date'])
-        renames.set_index('Old', inplace=True)
-        # Apply the renames to the symbols table
-        kept_symbols = self.symbols[~pd.isna(self.symbols['Change Date'])]
-        updated_symbols = self.symbols[pd.isna(self.symbols['Change Date'])]
-        updated_symbols.drop(columns=['Change Date'], errors='ignore', inplace=True)
-        updated_symbols = updated_symbols.merge(renames[['New', 'Change Date']], left_index=True, right_index=True, how='left')
-        updated_symbols['Ticker'] = updated_symbols['New'].combine_first(self.symbols['Ticker'])
-        updated_symbols.drop(columns=['New'], inplace=True)
+        renames.rename(columns={'New': 'Ticker', 'Old': 'Symbol'}, inplace=True)
+        renames.drop(columns=['New Company Name'], inplace=True)
+        renames.set_index('Symbol', inplace=True)
 
-        self.symbols = pd.concat([kept_symbols, updated_symbols]).drop_duplicates().sort_values(by=['Change Date', 'Symbol'], na_position='first')
+        # Apply the renames to the symbols table
+        kept_symbols = self.symbols[self.symbols['Change Date'].isna()]
+        assert all(kept_symbols['Ticker'] == kept_symbols.index), "We should have just automatically generated symbols here."
+        active_renames = renames[renames.index.isin(self.symbols.index)]
+        active_renames['Currency'] = active_renames.index.map(lambda symbol: kept_symbols.loc[symbol]['Currency'])
+        self.symbols = pd.concat([kept_symbols, active_renames]).drop_duplicates().sort_values(by=['Change Date', 'Symbol'], na_position='last')
+        # TODO: The currency doesn't need to be the same in case it was another company that took over the symbol. We'll need to get it from the trades table later. 
+
 
         # Now we can adjust the trades for the renames
         if len(renames) > 0:
