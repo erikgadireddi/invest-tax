@@ -2,12 +2,13 @@ import pandas as pd
 import numpy as np
 import argparse
 import streamlit as st
-import matchmaker.styling as styling
 from menu import menu
+import matchmaker.styling as styling
 import matchmaker.data as data
 import matchmaker.snapshot as snapshot
 import matchmaker.trade as trade
 import matchmaker.ibkr as ibkr
+import matchmaker.imports as imports
 
 def import_trade_file(file):
     try:
@@ -83,24 +84,24 @@ def main():
     if uploaded_files:
         for uploaded_file in uploaded_files:
             import_state.write('Importuji transakce...')
-            import_period, imported_trades, imported_actions, imported_positions = import_trade_file(uploaded_file)
-            state.imports = pd.concat([state.imports, import_period]).drop_duplicates()
-            if len(imported_actions) > 0:
-                state.actions = pd.concat([imported_actions, state.actions])
+            imported = import_trade_file(uploaded_file)
+            state.imports = pd.concat([state.imports, imported.imports]).drop_duplicates()
+            if len(imported.actions) > 0:
+                state.actions = pd.concat([imported.actions, state.actions])
             # Merge open positions and drop duplicates
-            state.positions = pd.concat([imported_positions, state.positions])
+            state.positions = pd.concat([imported.positions, state.positions])
             state.positions.drop_duplicates(subset=['Symbol', 'Date'], inplace=True)
             state.positions.reset_index(drop=True, inplace=True)
-            loaded_count += len(imported_trades)
-            import_state.write(f'Slučuji :blue[{len(imported_trades)}] obchodů...')
-            state.trades = trade.merge_trades(state.trades, imported_trades)
+            loaded_count += len(imported.trades)
+            import_state.write(f'Slučuji :blue[{len(imported.trades)}] obchodů...')
+            state.trades = trade.merge_trades(imported.trades, state.trades)
             import_message = f'Importováno :green[{len(state.trades) - trades_count}] obchodů.'
             import_state.write(import_message)
 
     if loaded_count > 0:
         import_state.write(f'Nalezeno :blue[{loaded_count}] obchodů, z nichž :green[{len(state.trades) - trades_count}] je nových.')
         state.actions.drop_duplicates(inplace=True)
-        state.merge_import_intervals()
+        state.imports = imports.merge_import_intervals(state.imports)
         state.recompute_positions()
         state.save_session()
 
@@ -168,7 +169,7 @@ def main():
     # Serve merged trades as CSV    
     with col1:
         if (len(state.trades) > 0):
-            trades_csv = snapshot.save_snapshot(state.trades, state.actions, state.positions).encode('utf-8')
+            trades_csv = snapshot.save_snapshot(state).encode('utf-8')
             st.download_button('📩 Stáhnout vše v CSV', trades_csv, 'merged_trades.csv', 'text/csv', use_container_width=True, help='Stažením dostanete celý stav výpočtu pro další použití. Stačí příště přetáhnout do importu pro pokračování.')
     # Clear uploaded files
     with col2:

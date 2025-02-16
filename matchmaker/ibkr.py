@@ -5,6 +5,7 @@ import io
 from matchmaker.trade import normalize_trades
 import matchmaker.actions as actions
 import matchmaker.position as position
+import matchmaker.data as data
 
 def dataframe_from_prefixed_lines(line_dict: dict, prefix: str) -> pd.DataFrame:
     """
@@ -211,7 +212,7 @@ def generate_transfers_from_actions(actions: pd.DataFrame) -> pd.DataFrame:
     return normalize_trades(transfers)
 
 # @st.cache_data()
-def import_activity_statement(file: io.BytesIO) -> tuple:
+def import_activity_statement(file: io.BytesIO) -> data.State:
     """
     Import the entire IBKR activity statement, returning dataframes for trades, actions and open positions.
     """
@@ -251,4 +252,9 @@ def import_activity_statement(file: io.BytesIO) -> tuple:
         'Trade Count': [len(trades)],
     })
 
-    return imported, trades, actions, open_positions
+    state = data.State()
+    state.trades = trades
+    state.actions = actions
+    state.imports = imported
+    state.positions = open_positions
+    return state

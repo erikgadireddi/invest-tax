@@ -21,6 +21,8 @@ def convert_trade_columns(df: pd.DataFrame) -> pd.DataFrame:
         df['Manual'] = False
     if 'Action' not in df.columns and 'Code' in df.columns:
        df['Action'] = df['Code'].apply(lambda x: 'Open' if ('O' in x or 'Ca' in x) else 'Close' if 'C' in x else 'Unknown')
+    if 'Code' in df.columns:
+        df['Code'] = df['Code'].fillna('')
     # If action is not Transfer, then Type is Long if we're opening a position, Short if closing
     def get_type(row):
         if row['Quantity'] == 0:
@@ -44,14 +46,13 @@ def convert_trade_columns(df: pd.DataFrame) -> pd.DataFrame:
 
 def normalize_trades(df: pd.DataFrame) -> pd.DataFrame:
     """ Normalize the trade DataFrame by converting columns, then adding derived columns and hashing the result as its index (used to determine import uniqueness). """
-    if df.empty:
-        return df
-    df = convert_trade_columns(df)
-    df['Year'] = df['Date/Time'].dt.year
-    df['Orig. Quantity'] = df['Quantity']
-    df['Orig. T. Price'] = df['T. Price']
-    df['Category'] = 'Trades'
-    df = df[['Category'] + [col for col in df.columns if col != 'Category']]
+    if not df.empty:
+        df = convert_trade_columns(df)
+        df['Year'] = df['Date/Time'].dt.year
+        df['Orig. Quantity'] = df['Quantity']
+        df['Orig. T. Price'] = df['T. Price']
+        df['Category'] = 'Trades'
+        df = df[['Category'] + [col for col in df.columns if col != 'Category']]
     # Set up the hash column as index
     df['Hash'] = df.apply(hash.hash_row, axis=1)
     df.set_index('Hash', inplace=True)
