@@ -252,7 +252,7 @@ def import_activity_statement(file: io.BytesIO) -> data.State:
         'Trade Count': [len(trades)],
     })
 
-    state = position.State()
+    state = data.State()
     state.trades = trades
     state.actions = actions
     state.imports = imported

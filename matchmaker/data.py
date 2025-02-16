@@ -129,32 +129,10 @@ class State:
         updated_symbols['Ticker'] = updated_symbols['New'].combine_first(self.symbols['Ticker'])
         updated_symbols.drop(columns=['New'], inplace=True)
 
-        self.symbols = pd.concat([kept_symbols, updated_symbols]).drop_duplicates().sort_values(by='Change Date', na_position='first')
+        self.symbols = pd.concat([kept_symbols, updated_symbols]).drop_duplicates().sort_values(by=['Change Date', 'Symbol'], na_position='first')
 
         # Now we can adjust the trades for the renames
         if len(renames) > 0:
             self.apply_renames()
             self.trades = trade.compute_accumulated_positions(self.trades)
 
-    def merge_import_intervals(self):
-        """ Merge intervals of imported trades together if they form a largerc ontinuous interval. """
-        self.imports.sort_values(by=['Account', 'From'], inplace=True)
-        merged_imports = []
-        current_import = None
-
-        for _, row in self.imports.iterrows():
-            if current_import is None:
-                current_import = row
-            elif current_import['Account'] == row['Account'] and current_import['To'] >= row['From'] - pd.Timedelta(days=1):
-                current_import['To'] = max(current_import['To'], row['To'])
-                current_import['Trade Count'] += row['Trade Count']
-            else:
-                merged_imports.append(current_import)
-                current_import = row
-
-        if current_import is not None:
-            merged_imports.append(current_import)
-
-        self.imports = pd.DataFrame(merged_imports)
-        return self.imports
-    

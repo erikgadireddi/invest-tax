@@ -2,12 +2,13 @@ import pandas as pd
 import numpy as np
 import argparse
 import streamlit as st
-import matchmaker.styling as styling
 from menu import menu
+import matchmaker.styling as styling
 import matchmaker.data as data
 import matchmaker.snapshot as snapshot
 import matchmaker.trade as trade
 import matchmaker.ibkr as ibkr
+import matchmaker.imports as imports
 
 def import_trade_file(file):
     try:
@@ -100,7 +101,7 @@ def main():
     if loaded_count > 0:
         import_state.write(f'Nalezeno :blue[{loaded_count}] obchodů, z nichž :green[{len(state.trades) - trades_count}] je nových.')
         state.actions.drop_duplicates(inplace=True)
-        state.merge_import_intervals()
+        state.imports = imports.merge_import_intervals(state.imports)
         state.recompute_positions()
         state.save_session()
 

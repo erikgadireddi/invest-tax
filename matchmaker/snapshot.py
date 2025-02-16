@@ -4,6 +4,7 @@ import matchmaker.trade as trade
 import matchmaker.actions as action
 import matchmaker.position as position
 import matchmaker.data as data
+import matchmaker.imports as imports
 import io
 
 def is_snapshot(file):
@@ -18,7 +19,7 @@ sections = [
     ('Actions', lambda state: state.actions.to_csv(index=False), lambda data, state: setattr(state, 'actions', action.convert_action_columns(pd.read_csv(io.StringIO(data))))),
     ('Position History', lambda state: state.positions.to_csv(index=False), lambda data, state: setattr(state, 'positions', position.convert_position_history_columns(pd.read_csv(io.StringIO(data))))),
     ('Symbols', lambda state: state.symbols.to_csv(index_label='Symbol'), lambda data, state: setattr(state, 'symbols', pd.read_csv(io.StringIO(data)).set_index('Symbol'))),
-    ('Imports', lambda state: state.imports.to_csv(index=False), lambda data, state: setattr(state, 'imports', pd.read_csv(io.StringIO(data))))
+    ('Imports', lambda state: state.imports.to_csv(index=False), lambda data, state: setattr(state, 'imports', imports.convert_import_history_columns(pd.read_csv(io.StringIO(data)))))
 ]
 
 @st.cache_data(hash_funcs={data.State: data.State.get_state})
