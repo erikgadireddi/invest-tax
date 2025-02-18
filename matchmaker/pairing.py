@@ -212,4 +212,4 @@ def pair_buy_sell(trades: pd.DataFrame, pairs: pd.DataFrame, strategy: str, from
         return trades[trades['Action'] == 'Open'], trades[trades['Action'] == 'Close'], pd.DataFrame()
     
     pairs['Revenue'] = pairs['Proceeds'] + pairs['Cost']
-    return trades[trades['Uncovered Quantity'] != 0], pairs.sort_values(by=['Display Name','Sell Time', 'Buy Time'])
+    return pairs.sort_values(by=['Display Name','Sell Time', 'Buy Time']), trades[trades['Uncovered Quantity'] != 0]

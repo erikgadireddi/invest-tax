@@ -32,7 +32,7 @@ def page():
     #  use_yearly_rates: bool
     trades = state.trades[(state.trades['Action'] == 'Open') | (state.trades['Action'] == 'Close')] # Filter out transfers and other transactions
     closing_trades = trades[trades['Action'] == 'Close']
-    strategies = pairing.Pairings.get_strategies()
+    strategies = pairing.Pairings.get_strategies()[1:]
     st.session_state.update(year=ux.add_years_filter(closing_trades, False, 'Rok pro párování'))
     years = sorted(closing_trades['Year'].unique())
     show_year = st.session_state.get('year')
@@ -104,7 +104,7 @@ def page():
                                     'Accumulated Quantity': st.column_config.NumberColumn("Position")
                                     })
     
-    unpaired_sells = state.unpaired_trades[state.unpaired_trades['Action'] == 'Close']
+    unpaired_sells = state.pairings.unpaired[state.pairings.unpaired['Action'] == 'Close']
     unpaired_sells = unpaired_sells[(unpaired_sells['Year'] == show_year)]
     footer = f'Danitelný výdělek v CZK: :blue[{filtered_pairs[filtered_pairs["Taxable"] == 1]["CZK Revenue"].sum():,.0f}] CZK'
     untaxed_revenue = filtered_pairs[filtered_pairs['Taxable'] == 0]['CZK Revenue'].sum()
