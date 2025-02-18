@@ -21,8 +21,6 @@ def page():
     # Trades we previously tried to pair. Will be used to check when recomputation is needed.
     computed_trades = st.session_state.computed_trades if 'computed_trades' in st.session_state else pd.DataFrame()
     match_config = st.session_state.match_config if 'match_config' in st.session_state else {}
-    buys = st.session_state.buys if 'buys' in st.session_state else pd.DataFrame()
-    sells = st.session_state.sells if 'sells' in st.session_state else pd.DataFrame()
     previous_config = copy.deepcopy(match_config)
     if state.trades.empty:
         st.caption('Nebyly importovány žádné obchody.')
@@ -61,9 +59,7 @@ def page():
                 break
         
     if need_recompute:
-        buys, sells, state.paired_trades = pair_buy_sell(trades, state.paired_trades, show_strategy, show_year)
-        st.session_state.update(buys=buys)
-        st.session_state.update(sells=sells)
+        state.unpaired_trades, state.paired_trades = pair_buy_sell(trades, state.paired_trades, show_strategy, show_year)
         state.save_session()
         # Update all higher years to use the same strategy
         for year in years[years.index(show_year)+1:]:
@@ -109,7 +105,8 @@ def page():
                                     'Accumulated Quantity': st.column_config.NumberColumn("Position")
                                     })
     
-    unpaired_sells = sells[(sells['Year'] == show_year) & (sells['Uncovered Quantity'] != 0)]
+    unpaired_sells = state.unpaired_trades[state.unpaired_trades['Action'] == 'Close']
+    unpaired_sells = unpaired_sells[(unpaired_sells['Year'] == show_year)]
     footer = f'Danitelný výdělek v CZK: :blue[{filtered_pairs[filtered_pairs["Taxable"] == 1]["CZK Revenue"].sum():,.0f}] CZK'
     untaxed_revenue = filtered_pairs[filtered_pairs['Taxable'] == 0]['CZK Revenue'].sum()
     if untaxed_revenue > 0:

@@ -2,23 +2,45 @@
 import pandas as pd
 import streamlit as st
 
-strategies = ['FIFO', 'LIFO', 'AverageCost', 'MaxLoss', 'MaxProfit']
+class Pairings:
+    """ Holds the current state of the pairing process. """
+    strategies = ['FIFO', 'LIFO', 'AverageCost', 'MaxLoss', 'MaxProfit']
 
-def load_buy_sell_pairs(filename):
-    pairs = pd.read_csv(filename)
-    # Convert columns to correct types
-    pairs['Buy Time'] = pd.to_datetime(pairs['Buy Time'])
-    pairs['Sell Time'] = pd.to_datetime(pairs['Sell Time'])
-    pairs['Quantity'] = pd.to_numeric(pairs['Quantity'], errors='coerce')
-    pairs['Buy Price'] = pd.to_numeric(pairs['Buy Price'], errors='coerce')
-    pairs['Sell Price'] = pd.to_numeric(pairs['Sell Price'], errors='coerce')
-    pairs['Buy Cost'] = pd.to_numeric(pairs['Buy Cost'], errors='coerce')
-    pairs['Sell Proceeds'] = pd.to_numeric(pairs['Sell Proceeds'], errors='coerce')
-    pairs['Ratio'] = pd.to_numeric(pairs['Ratio'], errors='coerce')
-    pairs['Taxable'] = pd.to_numeric(pairs['Taxable'], errors='coerce')
-    return pairs
-    
+    def __init__(self):
+        self.reset()
+
+    def reset(self):
+        """ Trades that were paired together to form taxable pairs. """
+        self.paired = pd.DataFrame()
+        """ Trades that were not fully paired together. """
+        self.unpaired = pd.DataFrame()
+        """ Configuration of the pairing process. """
+        self.config = {}
+
+    def update(self, **kwargs):
+        for key, value in kwargs.items():
+            setattr(self, key, value)
+
+    def get_state(self):
+        """ Used for streamlit caching. """
+        return (self.paired, self.unpaired, self.config)
+
+    def load_session(self):
+        self.paired = st.session_state.paired_trades if 'pairing_paired' in st.session_state else pd.DataFrame()
+        self.unpaired = st.session_state.unpaired_trades if 'pairing_unpaired' in st.session_state else pd.DataFrame()
+        self.config = st.session_state.config if 'pairing_config' in st.session_state else {}
+
+    def save_session(self):
+        st.session_state.update(pairing_paired=self.paired)
+        st.session_state.update(pairing_unpaired=self.unpaired)
+        st.session_state.update(pairing_config=self.config)
+
+    def recompute_pairings(self, trades: pd.DataFrame):
+        """ Recompute the pairings from the trades. """
+
+
 def fill_trades_covered_quantity(trades, sell_buy_pairs):
+    """ Fill in the covered and uncovered quantities for each trade based on already created pairs. """
     def is_short_trade(row):
         def is_quantity_opposite_of_action(row : pd.Series):
             return (row['Quantity'] > 0 and row['Action'] == 'Close') or (row['Quantity'] < 0 and row['Action'] == 'Open')
@@ -49,7 +71,8 @@ def fill_trades_covered_quantity(trades, sell_buy_pairs):
     return trades
 
 @st.cache_data()
-def pair_buy_sell(trades, pairs, strategy, from_year=None):
+def pair_buy_sell(trades: pd.DataFrame, pairs: pd.DataFrame, strategy: str, from_year: int = None) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """ Pair buy and sell trades to create taxable pairs. Return unmatched sells for diagnostics. """
     # Group all trades by Symbol into a new DataFrame
     # For each sell order (negative Proceeds), find enough corresponding buy orders (positive Proceeds) with the same Symbol to cover the sell order
     # Buy orders must be before the sell orders in time (Date/Time) and must have enough Quantity to cover the sell order
@@ -160,4 +183,4 @@ def pair_buy_sell(trades, pairs, strategy, from_year=None):
         return trades[trades['Action'] == 'Open'], trades[trades['Action'] == 'Close'], pd.DataFrame()
     
     pairs['Revenue'] = pairs['Proceeds'] + pairs['Cost']
-    return trades[trades['Action'] == 'Open'], trades[trades['Action'] == 'Close'], pairs.sort_values(by=['Display Name','Sell Time', 'Buy Time'])
+    return trades[trades['Uncovered Quantity'] != 0], pairs.sort_values(by=['Display Name','Sell Time', 'Buy Time'])

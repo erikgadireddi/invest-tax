@@ -12,6 +12,7 @@ def load_settings():
         with open('settings.json') as f:
             st.session_state['settings'] = json.load(f)
 
+
 class State:
     """ Hold the state of the application concerning imported trades and their subsequent processing. """
     def __init__(self):
@@ -28,6 +29,8 @@ class State:
         self.symbols = pd.DataFrame()
         """ Trades that were paired together to form taxable pairs. """
         self.paired_trades = pd.DataFrame()
+        """ Trades that were not fully paired together. """
+        self.unpaired_trades = pd.DataFrame()
         """ Descriptor of the imported data noting the account names, imported date range and the number of trades. """
         self.imports = pd.DataFrame()
 
@@ -37,7 +40,7 @@ class State:
 
     def get_state(self):
         """ Used for streamlit caching. """
-        return (self.trades, self.actions, self.positions, self.symbols, self.imports)
+        return (self.trades, self.actions, self.positions, self.symbols, self.imports, self.paired_trades, self.unpaired_trades)
     
     def load_session(self):
         self.trades = st.session_state.trades if 'trades' in st.session_state else pd.DataFrame()
@@ -45,6 +48,7 @@ class State:
         self.positions = st.session_state.positions if 'positions' in st.session_state else pd.DataFrame()
         self.symbols = st.session_state.symbols if 'symbols' in st.session_state else pd.DataFrame()
         self.paired_trades = st.session_state.paired_trades if 'paired_trades' in st.session_state else pd.DataFrame()
+        self.unpaired_trades = st.session_state.unpaired_trades if 'unpaired_trades' in st.session_state else pd.DataFrame()
         self.imports = st.session_state.imports if 'imports' in st.session_state else pd.DataFrame()
 
     def save_session(self):
@@ -53,6 +57,7 @@ class State:
         st.session_state.update(positions=self.positions)
         st.session_state.update(symbols=self.symbols)
         st.session_state.update(paired_trades=self.paired_trades)
+        st.session_state.update(unpaired_trades=self.unpaired_trades)
         st.session_state.update(imports=self.imports)
 
     def recompute_positions(self, added_trades = None):
@@ -99,8 +104,10 @@ class State:
         self.positions.reset_index(drop=True, inplace=True)
         before = len(self.trades)
         self.trades = trade.merge_trades(other.trades, self.trades)
-        self.invalidate_pairs(other.trades['Date/Time'].min())
-        return len(self.trades) - before
+        imported_count = len(self.trades) - before
+        if imported_count > 0:
+            self.invalidate_pairs(other.trades['Date/Time'].min())
+        return imported_count
 
     def add_manual_trades(self, new_trades):
         new_trades['Manual'] = True
@@ -112,11 +119,9 @@ class State:
         self.recompute_positions()
 
     def invalidate_pairs(self, date_since: pd.Timestamp):
-        """ Invalidate all pairs that were formed after the given date. """
-        if self.paired_trades.empty:
-            return
-        since_year = date_since.year
-        self.paired_trades = self.paired_trades[self.paired_trades['Year'] >= since_year]
+        """ Invalidate all pairs (partial invalidation won't help now). """
+        self.paired_trades = pd.DataFrame()
+        self.unpaired_trades = pd.DataFrame()
 
     def apply_renames(self):
         """ Apply symbol renames by looking them up in the symbols table . """
