@@ -106,7 +106,7 @@ class State:
                 lambda row: self.symbols.loc[
                     (self.symbols.index == row['Symbol']) & 
                     ((self.symbols['Change Date'].isna()) | (self.symbols['Change Date'] >= row[date_column]))
-                ].sort_values(by='Change Date', na_position='last').iloc[-1]['Ticker'],
+                ].sort_values(by='Change Date', na_position='last').iloc[0]['Ticker'],
                 axis=1
             )
             return df
