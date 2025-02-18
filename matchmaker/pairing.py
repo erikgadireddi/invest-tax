@@ -4,7 +4,7 @@ import streamlit as st
 
 class Pairings:
     """ Holds the current state of the pairing process. """
-    strategies = ['FIFO', 'LIFO', 'AverageCost', 'MaxLoss', 'MaxProfit']
+    strategies = ['None', 'FIFO', 'LIFO', 'AverageCost', 'MaxLoss', 'MaxProfit']
 
     def __init__(self):
         self.reset()
@@ -14,7 +14,7 @@ class Pairings:
         self.paired = pd.DataFrame()
         """ Trades that were not fully paired together. """
         self.unpaired = pd.DataFrame()
-        """ Configuration of the pairing process. """
+        """ Configuration of the pairing process - strategies for each year """
         self.config = {}
 
     def update(self, **kwargs):
@@ -24,19 +24,48 @@ class Pairings:
     def get_state(self):
         """ Used for streamlit caching. """
         return (self.paired, self.unpaired, self.config)
+    
+    def get_strategies():
+        return Pairings.strategies
 
     def load_session(self):
-        self.paired = st.session_state.paired_trades if 'pairing_paired' in st.session_state else pd.DataFrame()
-        self.unpaired = st.session_state.unpaired_trades if 'pairing_unpaired' in st.session_state else pd.DataFrame()
-        self.config = st.session_state.config if 'pairing_config' in st.session_state else {}
+        self.paired = st.session_state.pairing_paired if 'pairing_paired' in st.session_state else pd.DataFrame()
+        self.unpaired = st.session_state.pairing_unpaired if 'pairing_unpaired' in st.session_state else pd.DataFrame()
+        self.config = st.session_state.pairing_config if 'pairing_config' in st.session_state else {}
 
     def save_session(self):
         st.session_state.update(pairing_paired=self.paired)
         st.session_state.update(pairing_unpaired=self.unpaired)
         st.session_state.update(pairing_config=self.config)
 
-    def recompute_pairings(self, trades: pd.DataFrame):
+    def populate_pairings(self, trades: pd.DataFrame, strategy: str, from_year: int = None):
         """ Recompute the pairings from the trades. """
+        if strategy not in self.strategies:
+            st.error(f'Unknown strategy: {strategy}')
+            return
+        if self.config.get(from_year) == strategy:
+            return
+
+        self.paired, self.unpaired = pair_buy_sell(trades, self.paired, strategy, from_year)
+        # Get all the years in the closing trades
+        years = trades[trades['Action'] == 'Close']['Year'].unique()
+        # Update strategy for each year affected by the pairing 
+        for year in years:
+            if year >= from_year:
+                self.config[year] = strategy
+
+    def invalidate_pairs(self, date_since: pd.Timestamp):
+        """ Invalidate all pairs (partial invalidation won't help now). """
+        if self.paired.empty:
+            return
+        self.paired = self.paired[self.paired['Buy Time'] < date_since]
+        self.unpaired = self.unpaired[self.unpaired['Date/Time'] < date_since]
+        for year in self.config.keys():
+            self.config[year] = 'None'
+
+    def get_state(self):
+        """ Used for streamlit caching. """
+        return (self.paired, self.unpaired, self.config)
 
 
 def fill_trades_covered_quantity(trades, sell_buy_pairs):

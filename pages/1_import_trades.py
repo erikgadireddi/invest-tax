@@ -89,11 +89,11 @@ def main():
             loaded_count += state.merge_trades(imported)
             import_message = f'Importováno :green[{len(state.trades) - trades_count}] obchodů.'
             import_state.write(import_message)
+        state.actions.drop_duplicates(inplace=True)
+        state.imports = imports.merge_import_intervals(state.imports)
 
     if loaded_count > 0:
         import_state.write(f'Nalezeno :blue[{loaded_count}] obchodů, z nichž :green[{len(state.trades) - trades_count}] je nových.')
-        state.actions.drop_duplicates(inplace=True)
-        state.imports = imports.merge_import_intervals(state.imports)
         state.recompute_positions()
         state.save_session()
 

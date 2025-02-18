@@ -1,11 +1,11 @@
 # Used to hash entire rows since there is no unique identifier for each row
 from matchmaker import trade
-from matchmaker import position
+from matchmaker import pairing
 import json
 import pandas as pd
 import numpy as np
 import streamlit as st
-import hashlib
+
 
 def load_settings():
     if st.session_state.get('settings') is None:
@@ -27,12 +27,10 @@ class State:
         self.positions = pd.DataFrame()
         """ Symbols appearing in the trades and positions, their currency and optionally their renamed name. Used to group together multiple symbols that refer to the same asset. Index: raw symbol present in statements """
         self.symbols = pd.DataFrame()
-        """ Trades that were paired together to form taxable pairs. """
-        self.paired_trades = pd.DataFrame()
-        """ Trades that were not fully paired together. """
-        self.unpaired_trades = pd.DataFrame()
         """ Descriptor of the imported data noting the account names, imported date range and the number of trades. """
         self.imports = pd.DataFrame()
+        """ Trades that were paired together to form taxable pairs. """
+        self.pairings = pairing.Pairings()
 
     def update(self, **kwargs):
         for key, value in kwargs.items():
@@ -40,25 +38,23 @@ class State:
 
     def get_state(self):
         """ Used for streamlit caching. """
-        return (self.trades, self.actions, self.positions, self.symbols, self.imports, self.paired_trades, self.unpaired_trades)
+        return (self.trades, self.actions, self.positions, self.symbols, self.imports, self.pairings.get_state())
     
     def load_session(self):
         self.trades = st.session_state.trades if 'trades' in st.session_state else pd.DataFrame()
         self.actions = st.session_state.actions if 'actions' in st.session_state else pd.DataFrame()
         self.positions = st.session_state.positions if 'positions' in st.session_state else pd.DataFrame()
         self.symbols = st.session_state.symbols if 'symbols' in st.session_state else pd.DataFrame()
-        self.paired_trades = st.session_state.paired_trades if 'paired_trades' in st.session_state else pd.DataFrame()
-        self.unpaired_trades = st.session_state.unpaired_trades if 'unpaired_trades' in st.session_state else pd.DataFrame()
         self.imports = st.session_state.imports if 'imports' in st.session_state else pd.DataFrame()
+        self.pairings.load_session()
 
     def save_session(self):
         st.session_state.update(trades=self.trades)
         st.session_state.update(actions=self.actions)
         st.session_state.update(positions=self.positions)
         st.session_state.update(symbols=self.symbols)
-        st.session_state.update(paired_trades=self.paired_trades)
-        st.session_state.update(unpaired_trades=self.unpaired_trades)
         st.session_state.update(imports=self.imports)
+        self.pairings.save_session()
 
     def recompute_positions(self, added_trades = None):
         """ 
@@ -106,7 +102,7 @@ class State:
         self.trades = trade.merge_trades(other.trades, self.trades)
         imported_count = len(self.trades) - before
         if imported_count > 0:
-            self.invalidate_pairs(other.trades['Date/Time'].min())
+            self.pairings.invalidate_pairs(other.trades['Date/Time'].min())
         return imported_count
 
     def add_manual_trades(self, new_trades):
@@ -115,13 +111,8 @@ class State:
         new_trades['Display Name'] = new_trades['Symbol']
         self.trades = pd.concat([self.trades, new_trades])
         self.trades.drop_duplicates(inplace=True) # Someone could put in two identical manual trades as there is a preset date. Let's remove them as they would cause trouble with duplicate indices.
-        self.invalidate_pairs(new_trades['Date/Time'].min())
+        self.pairings.invalidate_pairs(new_trades['Date/Time'].min())
         self.recompute_positions()
-
-    def invalidate_pairs(self, date_since: pd.Timestamp):
-        """ Invalidate all pairs (partial invalidation won't help now). """
-        self.paired_trades = pd.DataFrame()
-        self.unpaired_trades = pd.DataFrame()
 
     def apply_renames(self):
         """ Apply symbol renames by looking them up in the symbols table . """

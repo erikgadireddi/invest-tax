@@ -1,12 +1,12 @@
 import pandas as pd
 import streamlit as st
 from streamlit_pills import pills
-from matchmaker.pairing import pair_buy_sell, strategies
 import matchmaker.currency as currency
 import matchmaker.data as data 
 import matchmaker.ux as ux
 import matchmaker.trade as trade
 import matchmaker.styling as styling
+import matchmaker.pairing as pairing
 from menu import menu
 import copy
 
@@ -19,7 +19,6 @@ def page():
     state = data.State()
     state.load_session()
     # Trades we previously tried to pair. Will be used to check when recomputation is needed.
-    computed_trades = st.session_state.computed_trades if 'computed_trades' in st.session_state else pd.DataFrame()
     match_config = st.session_state.match_config if 'match_config' in st.session_state else {}
     previous_config = copy.deepcopy(match_config)
     if state.trades.empty:
@@ -33,7 +32,7 @@ def page():
     #  use_yearly_rates: bool
     trades = state.trades[(state.trades['Action'] == 'Open') | (state.trades['Action'] == 'Close')] # Filter out transfers and other transactions
     closing_trades = trades[trades['Action'] == 'Close']
-    strategies = ['FIFO', 'LIFO', 'AverageCost', 'MaxLoss', 'MaxProfit']
+    strategies = pairing.Pairings.get_strategies()
     st.session_state.update(year=ux.add_years_filter(closing_trades, False, 'Rok pro párování'))
     years = sorted(closing_trades['Year'].unique())
     show_year = st.session_state.get('year')
@@ -51,7 +50,7 @@ def page():
     
     # Needs recompute only if strategy changed. Empty strategy means this page was opened for the first time.
     # Also needs recompute if we have new trades or the trades changed.
-    need_recompute = len(computed_trades) != len(trades) or not computed_trades.equals(trades)
+    need_recompute = True
     if not need_recompute:
         for year in years:
             if len(previous_config) == 0 or match_config[year]['strategy'] != previous_config[year]['strategy']:
@@ -59,7 +58,7 @@ def page():
                 break
         
     if need_recompute:
-        state.unpaired_trades, state.paired_trades = pair_buy_sell(trades, state.paired_trades, show_strategy, show_year)
+        state.pairings.populate_pairings(trades, show_strategy, show_year)
         state.save_session()
         # Update all higher years to use the same strategy
         for year in years[years.index(show_year)+1:]:
@@ -68,16 +67,16 @@ def page():
     st.session_state.update(match_config=match_config)
     st.session_state.update(show_year=show_year)
 
-    if state.paired_trades.empty:
+    if state.pairings.paired.empty:
         st.caption('Nebyly nalezeny žádné párované obchody.')
         return
     
     if this_config['yearly_rates']:
         yearly_rates = currency.load_yearly_rates(st.session_state['settings']['currency_rates_dir'])
-        pairs_in_czk = currency.add_czk_conversion_to_pairs(state.paired_trades, yearly_rates, True)
+        pairs_in_czk = currency.add_czk_conversion_to_pairs(state.pairings.paired, yearly_rates, True)
     else:
         daily_rates = currency.load_daily_rates(st.session_state['settings']['currency_rates_dir'])
-        pairs_in_czk = currency.add_czk_conversion_to_pairs(state.paired_trades, daily_rates, False)
+        pairs_in_czk = currency.add_czk_conversion_to_pairs(state.pairings.paired, daily_rates, False)
     pairs_in_czk['Percent Return'] = pairs_in_czk['Ratio'] * 100
     filtered_pairs = pairs_in_czk[pairs_in_czk['Sell Time'].dt.year == show_year]
     trades_display = st.dataframe(styling.format_paired_trades(filtered_pairs), hide_index=True, height=600, 
