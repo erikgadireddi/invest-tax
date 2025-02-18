@@ -88,13 +88,32 @@ class State:
             
             self.trades['Display Name'] = self.trades['Ticker'] + self.trades['Display Suffix'].fillna('')
 
+    def merge_trades(self, other: 'State') -> int:
+        """ Merge another state into this one, returning the number of new trades. """
+        self.imports = pd.concat([self.imports, other.imports]).drop_duplicates()
+        if len(other.actions) > 0:
+            self.actions = pd.concat([other.actions, self.actions])
+        # Merge open positions and drop duplicates
+        self.positions = pd.concat([other.positions, self.positions])
+        self.positions.drop_duplicates(subset=['Symbol', 'Date'], inplace=True)
+        self.positions.reset_index(drop=True, inplace=True)
+        before = len(self.trades)
+        self.trades = trade.merge_trades(other.trades, self.trades)
+        return len(self.trades) - before
+
     def add_manual_trades(self, new_trades):
         new_trades['Manual'] = True
         new_trades['Ticker'] = new_trades['Symbol']
         new_trades['Display Name'] = new_trades['Symbol']
         self.trades = pd.concat([self.trades, new_trades])
         self.trades.drop_duplicates(inplace=True) # Someone could put in two identical manual trades as there is a preset date. Let's remove them as they would cause trouble with duplicate indices.
+        self.invalidate_pairs(new_trades['Date/Time'].min())
         self.recompute_positions()
+
+    def invalidate_pairs(self, date_since: pd.Timestamp):
+        """ Invalidate all pairs that were formed after the given date. """
+        since_year = date_since.year
+        self.paired_trades = self.paired_trades[self.paired_trades['Year'] >= since_year]
 
     def apply_renames(self):
         """ Apply symbol renames by looking them up in the symbols table . """
