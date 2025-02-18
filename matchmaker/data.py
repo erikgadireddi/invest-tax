@@ -99,6 +99,7 @@ class State:
         self.positions.reset_index(drop=True, inplace=True)
         before = len(self.trades)
         self.trades = trade.merge_trades(other.trades, self.trades)
+        self.invalidate_pairs(other.trades['Date/Time'].min())
         return len(self.trades) - before
 
     def add_manual_trades(self, new_trades):
@@ -112,6 +113,8 @@ class State:
 
     def invalidate_pairs(self, date_since: pd.Timestamp):
         """ Invalidate all pairs that were formed after the given date. """
+        if self.paired_trades.empty:
+            return
         since_year = date_since.year
         self.paired_trades = self.paired_trades[self.paired_trades['Year'] >= since_year]
 
