@@ -18,9 +18,6 @@ def page():
 
     state = data.State()
     state.load_session()
-    # Trades we previously tried to pair. Will be used to check when recomputation is needed.
-    match_config = st.session_state.match_config if 'match_config' in st.session_state else {}
-    previous_config = copy.deepcopy(match_config)
     if state.trades.empty:
         st.caption('Nebyly importovány žádné obchody.')
         st.page_link("pages/1_import_trades.py", label="📥 Přejít na import obchodů")
@@ -38,53 +35,32 @@ def page():
     show_year = st.session_state.get('year')
     if show_year is None:
         show_year = years[-1]
-    for year in years:
-        if year not in match_config:
-            match_config[year] = {'strategy': 'FIFO', 'yearly_rates': True}
+    state.pairings.populate_choices(trades)
     
-    this_config = match_config[show_year]
-    this_config['strategy'] = pills('Strategie párování', strategies, index=strategies.index(this_config['strategy']), key=f'strategy_{show_year}')
-    this_config['yearly_rates'] = pills(f'Použíté kurzy', ['roční', 'denní'], index=0 if this_config['yearly_rates'] else 1, key=f'yearly_rates_{show_year}') == 'roční'
-    show_strategy = match_config[show_year]['strategy']
-    st.caption(f'Strategie pro rok {show_year}: {show_strategy} | {"roční" if this_config["yearly_rates"] else "denní"} kurzy')
+    choice = copy.deepcopy(state.pairings.config[show_year])
+    if (choice.pair_strategy == 'None'):
+        choice.pair_strategy = 'FIFO'
+    choice.pair_strategy = pills('Strategie párování', strategies, index=strategies.index(choice.pair_strategy), key=f'strategy_{show_year}')
+    choice.conversion_rates = 'Yearly' if pills(f'Použíté kurzy', ['roční', 'denní'], index=0 if choice.conversion_rates == 'Yearly' else 1, key=f'yearly_rates_{show_year}') == 'roční' else 'Daily'
     
-    # Needs recompute only if strategy changed. Empty strategy means this page was opened for the first time.
-    # Also needs recompute if we have new trades or the trades changed.
-    need_recompute = True
-    if not need_recompute:
-        for year in years:
-            if len(previous_config) == 0 or match_config[year]['strategy'] != previous_config[year]['strategy']:
-                need_recompute = True
-                break
-        
-    if need_recompute:
-        state.pairings.populate_pairings(trades, show_strategy, show_year)
-        state.save_session()
-        # Update all higher years to use the same strategy
-        for year in years[years.index(show_year)+1:]:
-            match_config[year]['strategy'] = this_config['strategy']
+    st.caption(f'Strategie pro rok {show_year}: {choice.pair_strategy} | {"roční" if choice.conversion_rates == 'Yearly' else "denní"} kurzy')
+    
+    state.pairings.populate_pairings(trades, show_year, choice)
+    state.save_session()
 
-    st.session_state.update(match_config=match_config)
     st.session_state.update(show_year=show_year)
 
     if state.pairings.paired.empty:
         st.caption('Nebyly nalezeny žádné párované obchody.')
         return
     
-    if this_config['yearly_rates']:
-        yearly_rates = currency.load_yearly_rates(st.session_state['settings']['currency_rates_dir'])
-        pairs_in_czk = currency.add_czk_conversion_to_pairs(state.pairings.paired, yearly_rates, True)
-    else:
-        daily_rates = currency.load_daily_rates(st.session_state['settings']['currency_rates_dir'])
-        pairs_in_czk = currency.add_czk_conversion_to_pairs(state.pairings.paired, daily_rates, False)
-    pairs_in_czk['Percent Return'] = pairs_in_czk['Ratio'] * 100
-    filtered_pairs = pairs_in_czk[pairs_in_czk['Sell Time'].dt.year == show_year]
+    filtered_pairs = state.pairings.paired[state.pairings.paired['Sell Time'].dt.year == show_year]
     trades_display = st.dataframe(styling.format_paired_trades(filtered_pairs), hide_index=True, height=600, 
                                 column_order=('Display Name','Quantity','Buy Time','Buy Price','Sell Time','Sell Price','Currency','Buy Cost','Sell Proceeds','Revenue',
                                             'CZK Revenue','Percent Return','Type','Taxable','Buy CZK Rate','Sell CZK Rate', 'CZK Cost','CZK Proceeds'),
                                 column_config={
                                     'Display Name': st.column_config.TextColumn("Název", help="Název instrumentu"),
-                                    'Quantity': st.column_config.NumberColumn("Počet", help="Počet kusů daného instrumentu", format="%d" if show_strategy != 'AverageCost' else "%.2f"), 
+                                    'Quantity': st.column_config.NumberColumn("Počet", help="Počet kusů daného instrumentu", format="%d" if choice.pair_strategy != 'AverageCost' else "%.2f"), 
                                     'Buy Time': st.column_config.DatetimeColumn("Datum nákupu", help="Datum nákupní transakce"), 
                                     'Sell Time': st.column_config.DatetimeColumn("Datum prodeje", help="Datum prodejní transakce"), 
                                     'Buy Price': st.column_config.NumberColumn("Nákup (hrubý)", help="Cena nákupu 1 kusu bez poplatků", format="%.2f"), 

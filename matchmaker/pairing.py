@@ -1,10 +1,17 @@
 
 import pandas as pd
 import streamlit as st
+from matchmaker import currency
 
 class Pairings:
     """ Holds the current state of the pairing process. """
     strategies = ['None', 'FIFO', 'LIFO', 'AverageCost', 'MaxLoss', 'MaxProfit']
+    conversion_rates = ['Yearly', 'Daily']
+
+    class Choices:
+        def __init__(self, strategy = 'None', rates_usage = 'None'):
+            self.pair_strategy = strategy
+            self.conversion_rates = rates_usage
 
     def __init__(self):
         self.reset()
@@ -15,7 +22,7 @@ class Pairings:
         """ Trades that were not fully paired together. """
         self.unpaired = pd.DataFrame()
         """ Configuration of the pairing process - strategies for each year """
-        self.config = {}
+        self.config: dict[int, Pairings.Choices] = {}
 
     def update(self, **kwargs):
         for key, value in kwargs.items():
@@ -27,6 +34,12 @@ class Pairings:
     
     def get_strategies():
         return Pairings.strategies
+    
+    def populate_choices(self, trades: pd.DataFrame):
+        years = trades[trades['Action'] == 'Close']['Year'].unique()
+        for year in years:
+            if year not in self.config:
+                self.config[year] = Pairings.Choices()
 
     def load_session(self):
         self.paired = st.session_state.pairing_paired if 'pairing_paired' in st.session_state else pd.DataFrame()
@@ -38,21 +51,30 @@ class Pairings:
         st.session_state.update(pairing_unpaired=self.unpaired)
         st.session_state.update(pairing_config=self.config)
 
-    def populate_pairings(self, trades: pd.DataFrame, strategy: str, from_year: int = None):
-        """ Recompute the pairings from the trades. """
-        if strategy not in self.strategies:
-            st.error(f'Unknown strategy: {strategy}')
+    def populate_pairings(self, trades: pd.DataFrame, from_year: int, choices: Choices):
+        """ Compute the pairings of the trades according to chosen strategy and rates usage. """
+        if choices.pair_strategy not in self.strategies:
+            st.error(f'Unknown strategy: {choices.pair_strategy}')
             return
-        if self.config.get(from_year) == strategy:
+        if choices.conversion_rates not in self.conversion_rates:
+            st.error(f'Unknown rates usage: {choices.conversion_rates}')
             return
 
-        self.paired, self.unpaired = pair_buy_sell(trades, self.paired, strategy, from_year)
-        # Get all the years in the closing trades
-        years = trades[trades['Action'] == 'Close']['Year'].unique()
-        # Update strategy for each year affected by the pairing 
-        for year in years:
-            if year >= from_year:
-                self.config[year] = strategy
+        # Initialize all yearly configurations if not yet present
+        self.populate_choices(trades)
+        
+        # If the strategy changed, recompute the pairings of this year and all the following years
+        if not (self.config[from_year].pair_strategy == choices.pair_strategy):
+            self.paired, self.unpaired = pair_buy_sell(trades, self.paired, choices.pair_strategy, from_year)
+            years = trades[trades['Action'] == 'Close']['Year'].unique()
+            for year in years:
+                if year in self.config:
+                    self.config[year].pair_strategy = choices.pair_strategy
+
+        # If the rates usage changed, update the pairs with the new rates
+        if not (self.config[from_year].conversion_rates == choices.conversion_rates):
+            self._add_currency_conversion(choices.conversion_rates)
+            self.config[from_year].conversion_rates = choices.conversion_rates
 
     def invalidate_pairs(self, date_since: pd.Timestamp):
         """ Invalidate all pairs (partial invalidation won't help now). """
@@ -62,6 +84,19 @@ class Pairings:
         self.unpaired = self.unpaired[self.unpaired['Date/Time'] < date_since]
         for year in self.config.keys():
             self.config[year] = 'None'
+
+    def _add_currency_conversion(self, conversion_usage: str):
+        """ Add yearly or daily currency conversion to the pairs. """
+        if conversion_usage == 'Yearly':
+            yearly_rates = currency.load_yearly_rates(st.session_state['settings']['currency_rates_dir'])
+            self.paired = currency.add_czk_conversion_to_pairs(self.paired, yearly_rates, True)
+        elif conversion_usage == 'Daily':
+            daily_rates = currency.load_daily_rates(st.session_state['settings']['currency_rates_dir'])
+            self.paired = currency.add_czk_conversion_to_pairs(self.paired, daily_rates, False)
+        else:
+            st.error(f'Unknown rates usage: {conversion_usage}')
+            return
+        self.paired['Percent Return'] = self.paired['Ratio'] * 100
 
     def get_state(self):
         """ Used for streamlit caching. """
