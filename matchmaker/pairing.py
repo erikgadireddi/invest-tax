@@ -70,6 +70,7 @@ class Pairings:
             for year in years:
                 if year in self.config and year >= from_year:
                     self.config[year].pair_strategy = choices.pair_strategy
+                    self.config[year].conversion_rates = 'None'
 
         # If the rates usage changed, update the pairs with the new rates
         if not (self.config[from_year].conversion_rates == choices.conversion_rates):
