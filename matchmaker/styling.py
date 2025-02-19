@@ -16,12 +16,12 @@ def color_trades_by_type(row):
     else:
         return ['background-color: #d1ecf1'] * len(row)  # lighter cyan
 
-def color_paired_trades_by_revenue(row, min_revenue, max_revenue):
-    revenue = row['Revenue']
-    if revenue < 0 and min_revenue != 0:
-        color = f'background-color: rgba(255, 0, 0, {0.5 * min(abs(revenue) / abs(min_revenue), 1)})'  # red gradient
-    elif  max_revenue != 0:
-        color = f'background-color: rgba(0, 255, 0, {0.5 * min(revenue / max_revenue, 1)})'  # green gradient
+def color_trades_red_to_green(row, column, min_value, max_value):
+    revenue = row[column]
+    if revenue < 0 and min_value != 0:
+        color = f'background-color: rgba(255, 0, 0, {0.5 * min(abs(revenue) / abs(min_value), 1)})'  # red gradient
+    elif max_value != 0:
+        color = f'background-color: rgba(0, 255, 0, {0.5 * min(revenue / max_value, 1)})'  # green gradient
     return [color] * len(row)
 
 def color_trades_as_red(row):
@@ -31,9 +31,9 @@ def format_trades(df : pd.DataFrame):
     return df.style.apply(color_trades_by_type, axis=1)
 
 def format_paired_trades(df : pd.DataFrame):
-    min_revenue = df['Revenue'].min()
-    max_revenue = df['Revenue'].max()
-    return df.style.apply(color_paired_trades_by_revenue, axis=1, min_revenue=min_revenue, max_revenue=max_revenue)
+    min_revenue = df['CZK Revenue'].min()
+    max_revenue = df['CZK Revenue'].max()
+    return df.style.apply(color_trades_red_to_green, axis=1, column='CZK Revenue', min_value=min_revenue, max_value=max_revenue)
 
 def format_missing_trades(df : pd.DataFrame):
     return df.style.apply(color_trades_as_red, axis=1)
