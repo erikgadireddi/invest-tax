@@ -68,7 +68,7 @@ class Pairings:
             self.paired, self.unpaired = pair_buy_sell(trades, self.paired, choices.pair_strategy, from_year)
             years = trades[trades['Action'] == 'Close']['Year'].unique()
             for year in years:
-                if year in self.config:
+                if year in self.config and year >= from_year:
                     self.config[year].pair_strategy = choices.pair_strategy
 
         # If the rates usage changed, update the pairs with the new rates
