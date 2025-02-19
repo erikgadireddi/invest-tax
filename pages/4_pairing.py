@@ -55,6 +55,12 @@ def page():
         return
     
     filtered_pairs = state.pairings.paired[state.pairings.paired['Sell Time'].dt.year == show_year]
+    footer = f'Danitelný výdělek: :blue[{filtered_pairs[filtered_pairs["Taxable"] == 1]["CZK Revenue"].sum():,.0f}] Kč'
+    untaxed_revenue = filtered_pairs[filtered_pairs['Taxable'] == 0]['CZK Revenue'].sum()
+    if untaxed_revenue > 0:
+        footer += f' (z toho :grey[{untaxed_revenue:,.0f}] Kč osvobozeno od daně)'
+    st.caption(footer)
+
     trades_display = st.dataframe(styling.format_paired_trades(filtered_pairs), hide_index=True, height=600, 
                                 column_order=('Display Name','Quantity','Buy Time','Buy Price','Sell Time','Sell Price','Currency','Buy Cost','Sell Proceeds','Revenue',
                                             'CZK Revenue','Percent Return','Type','Taxable','Buy CZK Rate','Sell CZK Rate', 'CZK Cost','CZK Proceeds'),
@@ -82,15 +88,8 @@ def page():
     
     unpaired_sells = state.pairings.unpaired[state.pairings.unpaired['Action'] == 'Close']
     unpaired_sells = unpaired_sells[(unpaired_sells['Year'] == show_year)]
-    footer = f'Danitelný výdělek v CZK: :blue[{filtered_pairs[filtered_pairs["Taxable"] == 1]["CZK Revenue"].sum():,.0f}] CZK'
-    untaxed_revenue = filtered_pairs[filtered_pairs['Taxable'] == 0]['CZK Revenue'].sum()
-    if untaxed_revenue > 0:
-        footer += f' | Osvobozený výdělek v CZK: :green[{untaxed_revenue:,.0f}] CZK'
-    
     if not unpaired_sells.empty:
-        footer += f' | Pozor, jsou zde nenapárované prodeje: :red[{len(unpaired_sells)}]'
-    st.caption(footer)
-    if not unpaired_sells.empty:
+        st.caption(f'Pozor, jsou zde nenapárované prodeje: :red[{len(unpaired_sells)}]')
         st.subheader('Nenapárované obchody')
         table_descriptor = ux.transaction_table_descriptor_czk()
         st.dataframe(styling.format_trades(unpaired_sells), hide_index=True, column_config=table_descriptor['column_config'], column_order=table_descriptor['column_order'])
