@@ -12,6 +12,9 @@ class Pairings:
         def __init__(self, strategy = 'None', rates_usage = 'None'):
             self.pair_strategy = strategy
             self.conversion_rates = rates_usage
+        
+        def get_state(self):
+            return (self.pair_strategy, self.conversion_rates)
 
     def __init__(self):
         self.reset()
@@ -30,7 +33,9 @@ class Pairings:
 
     def get_state(self):
         """ Used for streamlit caching. """
-        return (self.paired, self.unpaired, self.config)
+        # Convert config to a hashable type
+        config_hashable = tuple((year, choices.get_state()) for year, choices in self.config.items())
+        return (self.paired, self.unpaired, config_hashable)
     
     def get_strategies():
         return Pairings.strategies
@@ -77,14 +82,14 @@ class Pairings:
             self._add_currency_conversion(choices.conversion_rates)
             self.config[from_year].conversion_rates = choices.conversion_rates
 
-    def invalidate_pairs(self, date_since: pd.Timestamp):
+    def invalidate_pairs(self, date_since : pd.Timestamp = pd.Timestamp.min):
         """ Invalidate all pairs (partial invalidation won't help now). """
         if self.paired.empty:
             return
         self.paired = self.paired[self.paired['Buy Time'] < date_since]
         self.unpaired = self.unpaired[self.unpaired['Date/Time'] < date_since]
         for year in self.config.keys():
-            self.config[year] = 'None'
+            self.config[year] = Pairings.Choices()
 
     def _add_currency_conversion(self, conversion_usage: str):
         """ Add yearly or daily currency conversion to the pairs. """
@@ -98,10 +103,6 @@ class Pairings:
             st.error(f'Unknown rates usage: {conversion_usage}')
             return
         self.paired['Percent Return'] = self.paired['Ratio'] * 100
-
-    def get_state(self):
-        """ Used for streamlit caching. """
-        return (self.paired, self.unpaired, self.config)
 
 
 def fill_trades_covered_quantity(trades, sell_buy_pairs):

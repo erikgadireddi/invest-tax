@@ -38,7 +38,7 @@ class State:
 
     def get_state(self):
         """ Used for streamlit caching. """
-        return (self.trades, self.actions, self.positions, self.symbols, self.imports, self.pairings.get_state())
+        return (self.trades, self.actions, self.positions, self.symbols, self.imports) + self.pairings.get_state()
     
     def load_session(self):
         self.trades = st.session_state.trades if 'trades' in st.session_state else pd.DataFrame()
@@ -120,13 +120,16 @@ class State:
             
             # Symbols contain a history of renames of each symbol. We need to select the most recent rename that is older than the trade date.
             # Entries with no change date are considered to be the original symbol and applies if no other row matches.
-            df['Ticker'] = df.apply(
-                lambda row: self.symbols.loc[
-                    (self.symbols.index == row['Symbol']) & 
-                    ((self.symbols['Change Date'].isna()) | (self.symbols['Change Date'] >= row[date_column]))
-                ].sort_values(by='Change Date', na_position='last').iloc[0]['Ticker'],
-                axis=1
-            )
+            if not df.empty:
+                df['Ticker'] = df.apply(
+                    lambda row: self.symbols.loc[
+                        (self.symbols.index == row['Symbol']) & 
+                        ((self.symbols['Change Date'].isna()) | (self.symbols['Change Date'] >= row[date_column]))
+                    ].sort_values(by='Change Date', na_position='last').iloc[0]['Ticker'],
+                    axis=1
+                )
+            else:
+                df['Ticker'] = ''
             return df
 
         manual_trades = self.trades[self.trades['Manual'] == True]

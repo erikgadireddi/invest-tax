@@ -30,6 +30,11 @@ def page():
     trades = state.trades[(state.trades['Action'] == 'Open') | (state.trades['Action'] == 'Close')] # Filter out transfers and other transactions
     closing_trades = trades[trades['Action'] == 'Close']
     strategies = pairing.Pairings.get_strategies()[1:]
+    
+    if closing_trades.empty:
+        st.caption('Nebyly nalezeny žádné uzavřené obchody. Pro párování je třeba mít alespoň jeden uzavřený obchod.')
+        return
+    
     st.session_state.update(year=ux.add_years_filter(closing_trades, False, 'Rok pro párování'))
     years = sorted(closing_trades['Year'].unique())
     show_year = st.session_state.get('year')
