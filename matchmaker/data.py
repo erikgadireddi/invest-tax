@@ -89,7 +89,7 @@ class State:
             
             self.trades['Display Name'] = self.trades['Ticker'] + self.trades['Display Suffix'].fillna('')
 
-    def merge_trades(self, other: 'State') -> int:
+    def merge_trades(self, other: 'State', drop_pairings = True) -> int:
         """ Merge another state into this one, returning the number of new trades. """
         self.imports = pd.concat([self.imports, other.imports]).drop_duplicates()
         if len(other.actions) > 0:
@@ -101,8 +101,10 @@ class State:
         before = len(self.trades)
         self.trades = trade.merge_trades(other.trades, self.trades)
         imported_count = len(self.trades) - before
-        if imported_count > 0:
+        if imported_count > 0 and drop_pairings:
             self.pairings.invalidate_pairs(other.trades['Date/Time'].min())
+        elif not drop_pairings:
+            self.pairings = other.pairings
         return imported_count
 
     def add_manual_trades(self, new_trades):

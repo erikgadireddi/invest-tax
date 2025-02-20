@@ -2,6 +2,15 @@
 import pandas as pd
 import streamlit as st
 from matchmaker import currency
+from matchmaker import trade
+import io
+
+snapshot_sections = [
+    ('Paired Trades',  lambda state: state.pairings.paired.to_csv(index=False), lambda data, state: setattr(state.pairings, 'paired', normalize_paired_columns(pd.read_csv(io.StringIO(data))))),
+    ('Unpaired Trades', lambda state: state.pairings.unpaired.to_csv(index=False), lambda data, state: setattr(state.pairings, 'unpaired', normalize_unpaired_columns(pd.read_csv(io.StringIO(data))))),
+    ('Pairing Config', lambda state: pd.DataFrame([(year, choices.pair_strategy, choices.conversion_rates) for year, choices in state.pairings.config.items()], columns=['Year', 'Strategy', 'Rates']).to_csv(index=False),
+                       lambda data, state: setattr(state.pairings, 'config', config_from_dataframe(pd.read_csv(io.StringIO(data)))))
+]
 
 class Pairings:
     """ Holds the current state of the pairing process. """
@@ -250,3 +259,32 @@ def pair_buy_sell(trades: pd.DataFrame, pairs: pd.DataFrame, strategy: str, from
     
     pairs['Revenue'] = pairs['Proceeds'] + pairs['Cost']
     return pairs.sort_values(by=['Display Name','Sell Time', 'Buy Time']), trades[trades['Uncovered Quantity'] != 0]
+
+
+def config_from_dataframe(df: pd.DataFrame) -> dict[int, Pairings.Choices]:
+    return {row['Year']: Pairings.Choices(row['Strategy'], row['Rates']) for _, row in df.iterrows()}
+
+def normalize_paired_columns(df: pd.DataFrame) -> pd.DataFrame:
+    df['Quantity'] = pd.to_numeric(df['Quantity'], errors='coerce')
+    df['Buy Time'] = pd.to_datetime(df['Buy Time'])
+    df['Sell Time'] = pd.to_datetime(df['Sell Time'])
+    # df['Buy Price'] = pd.to_numeric(df['Buy Price'], errors='coerce')
+    # df['Sell Price'] = pd.to_numeric(df['Sell Price'], errors='coerce')
+    # df['Buy Cost'] = pd.to_numeric(df['Buy Cost'], errors='coerce')
+    # df['Sell Proceeds'] = pd.to_numeric(df['Sell Proceeds'], errors='coerce')
+    # df['Cost'] = pd.to_numeric(df['Cost'], errors='coerce')
+    # df['Proceeds'] = pd.to_numeric(df['Proceeds'], errors='coerce')
+    # df['Ratio'] = pd.to_numeric(df['Ratio'], errors='coerce')
+    # df['Taxable'] = pd.to_numeric(df['Taxable'], errors='coerce')
+    # df['Revenue'] = pd.to_numeric(df['Revenue'], errors='coerce')
+    # df['Buy CZK Rate'] = pd.to_numeric(df['Buy CZK Rate'], errors='coerce')
+    # df['Sell CZK Rate'] = pd.to_numeric(df['Sell CZK Rate'], errors='coerce')
+    # df['CZK Cost'] = pd.to_numeric(df['CZK Cost'], errors='coerce')
+    # df['CZK Proceeds'] = pd.to_numeric(df['CZK Proceeds'], errors='coerce')
+    # df['CZK Revenue'] = pd.to_numeric(df['CZK Revenue'], errors='coerce')
+    # df['Percent Return'] = pd.to_numeric(df['Percent Return'], errors='coerce')
+    return df
+
+def normalize_unpaired_columns(df: pd.DataFrame) -> pd.DataFrame:
+    df = trade.normalize_trades(df)
+    return df

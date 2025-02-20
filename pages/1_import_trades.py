@@ -2,13 +2,13 @@ import pandas as pd
 import numpy as np
 import argparse
 import streamlit as st
-from menu import menu
 import matchmaker.styling as styling
 import matchmaker.data as data
 import matchmaker.snapshot as snapshot
 import matchmaker.trade as trade
 import matchmaker.ibkr as ibkr
 import matchmaker.imports as imports
+from menu import menu
 
 def import_trade_file(file):
     try:
@@ -86,7 +86,7 @@ def main():
             import_state.write('Importuji transakce...')
             imported = import_trade_file(uploaded_file)
             import_state.write(f'Slučuji :blue[{len(imported.trades)}] obchodů...')
-            loaded_count += state.merge_trades(imported)
+            loaded_count += state.merge_trades(imported, loaded_count > 0)
             import_message = f'Importováno :green[{len(state.trades) - trades_count}] obchodů.'
             import_state.write(import_message)
         state.actions.drop_duplicates(inplace=True)
