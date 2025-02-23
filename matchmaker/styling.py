@@ -3,16 +3,22 @@ import streamlit as st
 from matchmaker.data import State
 
 def color_trades_by_type(row):
-    if row['Type'] == 'Long':
-        return ['background-color: #d4edda'] * len(row)  # lighter green
-    elif row['Type'] == 'Short':
-        return ['background-color: #f8d7da'] * len(row)  # lighter red
-    elif row['Type'] == 'Expired':
+    if row['Type'] == 'Expired':
         return ['background-color: #e2e3e5'] * len(row)  # lighter gray
     elif row['Type'] == 'Assigned':
         return ['background-color: #ffe5d4'] * len(row)  # lighter salmon
-    elif row['Type'] == 'Exercised':
+    elif (row['Type'] == 'Exercised') & (~pd.isna(row['Option Type'])):
+        return ['background-color: #efefff'] * len(row)  # lighter thistle
+    elif (row['Type'] == 'Exercised') & (pd.isna(row['Option Type'])):
         return ['background-color: #e6e6fa'] * len(row)  # lighter thistle
+    elif (row['Type'] == 'Long') & (~pd.isna(row['Option Type'])):
+        return ['background-color: #d4ffda'] * len(row)  # lighter green
+    elif (row['Type'] == 'Long') & (pd.isna(row['Option Type'])):
+        return ['background-color: #d4edda'] * len(row)  # lighter green
+    elif (row['Type'] == 'Short') & (~pd.isna(row['Option Type'])):
+        return ['background-color: #ffd3d6'] * len(row)  # lighter red
+    elif (row['Type'] == 'Short') & (pd.isna(row['Option Type'])):
+        return ['background-color: #f8d7da'] * len(row)  # lighter red
     else:
         return ['background-color: #d1ecf1'] * len(row)  # lighter cyan
 

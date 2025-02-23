@@ -35,7 +35,7 @@ if state.trades is not None and not state.trades.empty:
         
     symbol = pills('Vyberte symbol pro inspekci', options=symbols)
     st.caption(f'Vysvětlivky k jednotlivým sloupcům jsou k dispozici na najetí myší.')
-    shown_trades = state.trades[state.trades['Ticker'] == symbol].sort_values(by='Date/Time')
+    shown_trades = state.trades[state.trades['Ticker'] == symbol].sort_values(by=['Date/Time', 'Option Type'])
     if shown_trades.empty:
         st.caption(f'Pro symbol {symbol} nebyly nalezeny žádné obchody.')
     else:
@@ -47,7 +47,7 @@ if state.trades is not None and not state.trades.empty:
             held_position = stock_transactions['Accumulated Quantity'].iloc[-1]
             if held_position != 0:
                 st.markdown(f'**Držené pozice: :blue[{held_position:.0f}]**')
-        st.caption(f'Realizovaný profit dle brokera: :green[{profit:.0f}] {shown_trades["Currency"].iloc[0]}')
+        st.caption(f'Realizovaný profit dle brokera: :green[{profit:,.0f}] {shown_trades["Currency"].iloc[0]}')
             
         manual_trades = shown_trades[shown_trades['Manual'] == True]
         if not manual_trades.empty:

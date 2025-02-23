@@ -35,9 +35,9 @@ if state.trades is not None and not state.trades.empty:
     trades_display = st.dataframe(styling.format_trades(shown_trades), hide_index=True, column_order=table_descriptor['column_order'], column_config=table_descriptor['column_config'])
     profit_czk = trades[trades['Year'] == year]['CZK Profit'].sum() if year is not None else trades['CZK Profit'].sum()
     if year is not None:
-        st.caption(f'Profit tento rok dle brokera: :green[{profit_czk:.0f}] CZK') 
+        st.caption(f'Profit tento rok dle brokera: :green[{profit_czk:,.0f}] CZK') 
     else: 
-        st.caption(f'Profit dle brokera: :green[{profit_czk:.0f}] CZK')
+        st.caption(f'Profit dle brokera: :green[{profit_czk:,.0f}] CZK')
         
     missing_history = trade.per_account_transfers_with_missing_transactions(shown_trades)
     if len(missing_history) > 0:
