@@ -146,7 +146,7 @@ def fill_trades_covered_quantity(trades, sell_buy_pairs):
     return trades
 
 @st.cache_data()
-def pair_buy_sell(trades: pd.DataFrame, pairs: pd.DataFrame, strategy: str, from_year: int = None) -> tuple[pd.DataFrame, pd.DataFrame]:
+def pair_buy_sell(trades: pd.DataFrame, pairs: pd.DataFrame, strategy: str, from_year = None) -> tuple[pd.DataFrame, pd.DataFrame]:
     """ Pair buy and sell trades to create taxable pairs. Return unmatched sells for diagnostics. """
     # Group all trades by Symbol into a new DataFrame
     # For each sell order (negative Proceeds), find enough corresponding buy orders (positive Proceeds) with the same Symbol to cover the sell order
@@ -200,6 +200,7 @@ def pair_buy_sell(trades: pd.DataFrame, pairs: pd.DataFrame, strategy: str, from
                 else:
                     buys_to_cover = buys_to_cover.sort_values(by=['Date/Time'], ascending=match_strategy == 'FIFO')
                     
+                sell_fraction = 1  
                 if match_strategy == 'AverageCost':
                     total_uncovered = buys_to_cover['Uncovered Quantity'].sum()
                     sell_fraction = -sell['Uncovered Quantity'] / total_uncovered            
@@ -243,10 +244,10 @@ def pair_buy_sell(trades: pd.DataFrame, pairs: pd.DataFrame, strategy: str, from
                         pairs = pd.concat([pairs, pd.DataFrame([data])], ignore_index=True)
 
                         # Update the original dataframes
-                        buys.loc[index_b, 'Uncovered Quantity'] -= quantity
-                        buys.loc[index_b, 'Covered Quantity'] += quantity
-                        sells.loc[index_s, 'Covered Quantity'] += quantity
-                        sells.loc[index_s, 'Uncovered Quantity'] += quantity
+                        buys.at[index_b, 'Uncovered Quantity'] -= quantity
+                        buys.at[index_b, 'Covered Quantity'] += quantity
+                        sells.at[index_s, 'Covered Quantity'] += quantity
+                        sells.at[index_s, 'Uncovered Quantity'] += quantity
 
         # Propagate the changes back to the original DataFrame
         trades.loc[sells.index, 'Uncovered Quantity'] = sells['Uncovered Quantity']
@@ -255,7 +256,7 @@ def pair_buy_sell(trades: pd.DataFrame, pairs: pd.DataFrame, strategy: str, from
         trades.loc[buys.index, 'Covered Quantity'] = buys['Covered Quantity']
     
     if pairs.empty:
-        return trades[trades['Action'] == 'Open'], trades[trades['Action'] == 'Close'], pd.DataFrame()
+        return trades[trades['Action'] == 'Open'], trades[trades['Action'] == 'Close']
     
     pairs['Revenue'] = pairs['Proceeds'] + pairs['Cost']
     return pairs.sort_values(by=['Display Name','Sell Time', 'Buy Time']), trades[trades['Uncovered Quantity'] != 0]

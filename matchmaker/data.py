@@ -25,6 +25,8 @@ class State:
         self.actions = pd.DataFrame()
         """ Open positions snapshots parsed from the imported data, usually from the end of the imported intervals """
         self.positions = pd.DataFrame()
+        """ Dividends received in the imported data """
+        self.dividends = pd.DataFrame()
         """ Symbols appearing in the trades and positions, their currency and optionally their renamed name. Used to group together multiple symbols that refer to the same asset. Index: raw symbol present in statements """
         self.symbols = pd.DataFrame()
         """ Descriptor of the imported data noting the account names, imported date range and the number of trades. """
@@ -38,12 +40,13 @@ class State:
 
     def get_state(self):
         """ Used for streamlit caching. """
-        return (self.trades, self.actions, self.positions, self.symbols, self.imports) + self.pairings.get_state()
+        return (self.trades, self.actions, self.positions, self.dividends, self.symbols, self.imports) + self.pairings.get_state()
     
     def load_session(self):
         self.trades = st.session_state.trades if 'trades' in st.session_state else pd.DataFrame()
         self.actions = st.session_state.actions if 'actions' in st.session_state else pd.DataFrame()
         self.positions = st.session_state.positions if 'positions' in st.session_state else pd.DataFrame()
+        self.dividends = st.session_state.dividends if 'dividends' in st.session_state else pd.DataFrame()
         self.symbols = st.session_state.symbols if 'symbols' in st.session_state else pd.DataFrame()
         self.imports = st.session_state.imports if 'imports' in st.session_state else pd.DataFrame()
         self.pairings.load_session()
@@ -52,6 +55,7 @@ class State:
         st.session_state.update(trades=self.trades)
         st.session_state.update(actions=self.actions)
         st.session_state.update(positions=self.positions)
+        st.session_state.update(dividends=self.dividends)
         st.session_state.update(symbols=self.symbols)
         st.session_state.update(imports=self.imports)
         self.pairings.save_session()

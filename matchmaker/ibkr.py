@@ -22,9 +22,9 @@ def parse_csv_into_prefixed_lines(file: io.BytesIO) -> dict:
     Parse the CSV into a dictionary of lines
     """
     file.seek(0)
-    file = [line.decode('utf-8') for line in file]
+    lines = [line.decode('utf-8') for line in file]
     prefix_dict = {}
-    for line in file:
+    for line in lines:
         key = line.split(',', 1)[0]
         if key not in prefix_dict:
             prefix_dict[key] = []
@@ -68,11 +68,11 @@ def convert_option_names(df: pd.DataFrame) -> pd.DataFrame:
 
 # Data begins on the second line
 # Example line: Trades,Data,Order,Stocks,CZK,CEZ,"2023-08-03, 08:44:03",250,954,960,-238500,-763.2,239263.2,0,1500,O
-def import_trades(file: io.BytesIO) -> pd.DataFrame:
+def import_trades(lines: dict) -> pd.DataFrame:
     """
     Import the trades section from IBKR format.
     """
-    df = dataframe_from_prefixed_lines(file, 'Trades')
+    df = dataframe_from_prefixed_lines(lines, 'Trades')
     if df.empty:
         df = pd.DataFrame(columns=['Trades', 'Header', 'DataDiscriminator', 'Asset Category', 'Currency', 'Symbol', 'Date/Time', 'Quantity', 'T. Price', 'C. Price', 'Proceeds', 'Comm/Fee', 'Basis', 'Realized P/L', 'MTM P/L', 'Code'])
     df = df[(df['Trades'] == 'Trades') & (df['Header'] == 'Data') & (df['DataDiscriminator'] == 'Order') & ((df['Asset Category'] == 'Stocks') | (df['Asset Category'] == 'Equity and Index Options'))]
@@ -84,11 +84,11 @@ def import_trades(file: io.BytesIO) -> pd.DataFrame:
     df.drop(columns=['Trades', 'Header', 'DataDiscriminator', 'Asset Category',], inplace=True)
     return normalize_trades(df)
 
-def import_corporate_actions(file: io.BytesIO) -> pd.DataFrame:
+def import_corporate_actions(lines: dict) -> pd.DataFrame:
     """
     Import corporate actions from IBKR format.
     """
-    df = dataframe_from_prefixed_lines(file, 'Corporate Actions')
+    df = dataframe_from_prefixed_lines(lines, 'Corporate Actions')
     if df.empty:
         df = pd.DataFrame(columns=['Corporate Actions', 'Header', 'Asset Category', 'Currency', 'Report Date', 'Date/Time', 'Description', 'Quantity', 'Proceeds', 'Value', 'Realized P/L', 'Action', 'Symbol', 'Ratio', 'Code', 'Target'])
     df = df[df['Asset Category'] == 'Stocks']
@@ -145,12 +145,12 @@ def import_corporate_actions(file: io.BytesIO) -> pd.DataFrame:
     df = actions.convert_action_columns(df)
     return df
 
-def import_open_positions(file: io.BytesIO, date_from: pd.Timestamp, date_to: pd.Timestamp) -> pd.DataFrame:
+def import_open_positions(lines: dict, date_from: pd.Timestamp, date_to: pd.Timestamp) -> pd.DataFrame:
     """
     Import open positions from IBKR format.
     """
     # Old format that doesn't reflect symbol changes
-    df = dataframe_from_prefixed_lines(file, 'Mark-to-Market Performance Summary')
+    df = dataframe_from_prefixed_lines(lines, 'Mark-to-Market Performance Summary')
     if df.empty:
         # Mark-to-Market Performance Summary,Header,Asset Category,Symbol,Prior Quantity,Current Quantity,Prior Price,
         # Current Price,Mark-to-Market P/L Position,Mark-to-Market P/L Transaction,Mark-to-Market P/L Commissions,Mark-to-Market P/L Other,Mark-to-Market P/L Total,Code
@@ -162,11 +162,11 @@ def import_open_positions(file: io.BytesIO, date_from: pd.Timestamp, date_to: pd
     df['Current Date'] = date_to
     return position.convert_position_history_columns(df)
 
-def import_transfers(file: io.BytesIO) -> pd.DataFrame:
+def import_transfers(list: dict) -> pd.DataFrame:
     """
     Import transfers from IBKR format.
     """
-    df = dataframe_from_prefixed_lines(file, 'Transfers')
+    df = dataframe_from_prefixed_lines(list, 'Transfers')
     if df.empty:
         # Transfers,Header,Asset Category,,Currency,Symbol,Date,Type,Direction,Xfer Company,Xfer Account,Qty,Xfer Price,Market Value,Realized P/L,Cash Amount,Code
         df = pd.DataFrame(columns=['Transfers', 'Header', 'Asset Category', 'Currency', 'Symbol', 'Date', 'Type', 'Direction', 'Xfer Company', 'Xfer Account', 'Qty', 'Xfer Price', 'Market Value', 'Realized P/L', 'Cash Amount', 'Code'])
@@ -211,6 +211,9 @@ def generate_transfers_from_actions(actions: pd.DataFrame) -> pd.DataFrame:
         transfers = pd.concat([transfers, pd.DataFrame([transfer])], ignore_index=True)
     return normalize_trades(transfers)
 
+def import_dividends(lines: dict) -> pd.DataFrame:
+    pass
+
 # @st.cache_data()
 def import_activity_statement(file: io.BytesIO) -> data.State:
     """
@@ -238,8 +241,12 @@ def import_activity_statement(file: io.BytesIO) -> data.State:
     trades = pd.concat([trades, transfers])
     # Fill in account info into trades so open positions can be computed and verified per account
     account_info = dataframe_from_prefixed_lines(lines, 'Account Information')
-    account = account_info[account_info['Field Name'] == 'Account'].iloc[0]['Field Value']
-    account = re.match(r'U\d+', account).group(0)
+    account_str = account_info[account_info['Field Name'] == 'Account'].iloc[0]['Field Value']
+    match = re.match(r'U\d+', account_str)
+    if match:
+        account = match.group(0)
+    else:
+        raise ValueError("No account name/number found in account information. This is needed to match transfers between accounts. If you don't wish to disclose that, simply replace them with aliases.")
     if 'Account' not in trades.columns:
         trades['Account'] = account
     trades['Account'].fillna(account, inplace=True)

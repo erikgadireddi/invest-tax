@@ -4,25 +4,28 @@ from matchmaker.data import State
 
 def color_trades_by_type(row):
     if row['Type'] == 'Expired':
-        return ['background-color: #e2e3e5'] * len(row)  # lighter gray
-    elif row['Type'] == 'Assigned':
-        return ['background-color: #ffe5d4'] * len(row)  # lighter salmon
+        return ['background-color: #f0f0f0'] * len(row)  # subtle gray
+    elif (row['Type'] == 'Assigned') & (~pd.isna(row['Option Type'])):
+        return ['background-color: #fff4e6'] * len(row)  # subtle peach
+    elif (row['Type'] == 'Assigned') & (pd.isna(row['Option Type'])):
+        return ['background-color: #ffebd6'] * len(row)  # subtle peach
     elif (row['Type'] == 'Exercised') & (~pd.isna(row['Option Type'])):
-        return ['background-color: #efefff'] * len(row)  # lighter thistle
+        return ['background-color: #f0f0ff'] * len(row)  # subtle lavender
     elif (row['Type'] == 'Exercised') & (pd.isna(row['Option Type'])):
-        return ['background-color: #e6e6fa'] * len(row)  # lighter thistle
+        return ['background-color: #e8e8ff'] * len(row)  # subtle lavender
     elif (row['Type'] == 'Long') & (~pd.isna(row['Option Type'])):
-        return ['background-color: #d4ffda'] * len(row)  # lighter green
+        return ['background-color: #e6ffe6'] * len(row)  # subtle green
     elif (row['Type'] == 'Long') & (pd.isna(row['Option Type'])):
-        return ['background-color: #d4edda'] * len(row)  # lighter green
+        return ['background-color: #e6f7e6'] * len(row)  # subtle green
     elif (row['Type'] == 'Short') & (~pd.isna(row['Option Type'])):
-        return ['background-color: #ffd3d6'] * len(row)  # lighter red
+        return ['background-color: #ffe6e6'] * len(row)  # subtle red
     elif (row['Type'] == 'Short') & (pd.isna(row['Option Type'])):
-        return ['background-color: #f8d7da'] * len(row)  # lighter red
+        return ['background-color: #ffe6e6'] * len(row)  # subtle red
     else:
-        return ['background-color: #d1ecf1'] * len(row)  # lighter cyan
+        return ['background-color: #e6f7ff'] * len(row)  # subtle cyan
 
 def color_trades_red_to_green(row, column, min_value, max_value):
+    color = 'background-color: transparent'  # default color
     revenue = row[column]
     if revenue < 0 and min_value != 0:
         color = f'background-color: rgba(255, 0, 0, {0.5 * min(abs(revenue) / abs(min_value), 1)})'  # red gradient
