@@ -212,7 +212,35 @@ def generate_transfers_from_actions(actions: pd.DataFrame) -> pd.DataFrame:
     return normalize_trades(transfers)
 
 def import_dividends(lines: dict) -> pd.DataFrame:
-    pass
+    """
+    Import dividends and withholding taxes on those dividends.
+    """
+    # Dividends,Header,Currency,Date,Description,Amount
+    # Two main possibilities:
+    # Dividends,Data,EUR,2024-03-22,UNA.DIVRT(NL0015001YU5) Expire Dividend Right (Ordinary Dividend),17.07
+    # Dividends,Data,USD,2024-03-05,JNJ(US4781601046) Cash Dividend USD 1.19 per Share (Ordinary Dividend),11.9
+    # We will ignore the first for now
+    divi = dataframe_from_prefixed_lines(lines, 'Dividends')
+    if divi.empty:
+        return pd.DataFrame(columns=['Symbol', 'Display Name', 'Currency', 'Date', 'Ratio', 'Amount'])
+    divi = divi[~pd.isna(divi['Date'])]
+    divi['Date'] = pd.to_datetime(divi['Date'], format='%Y-%m-%d')
+    divi['Amount'] = pd.to_numeric(divi['Amount'], errors='coerce')
+    divi[['Symbol', 'Action', 'Ratio', 'Suffix']] = divi['Description'].str.extract(r'([\w\.]+)\(.*?\) (.+?) (\d+\.\d+) per Share (.*?)$')
+    mask = pd.isna(divi['Action'])
+    divi.loc[mask, ['Symbol', 'Action']] = divi.loc[mask, 'Description'].str.extract(r'([\w\.]+)\(.*?\) (.+?)$')
+    divi.drop(columns=['Dividends', 'Header', 'Description'], inplace=True)
+    
+    # Withholding Tax,Header,Currency,Date,Description,Amount,Code
+    # Withholding Tax,Data,USD,2024-03-05,JNJ(US4781601046) Cash Dividend USD 1.19 per Share - US Tax,-3.57,
+    withhold = dataframe_from_prefixed_lines(lines, 'Withholding Taxes')
+    if withhold.empty:
+        return divi
+    withhold['Date'] = pd.to_datetime(withhold['Date'], format='%Y-%m-%d')
+    withhold['Amount'] = pd.to_numeric(withhold['Amount'], errors='coerce')
+    withhold[['Action', 'Symbol', 'Ratio', 'Country']] = withhold['Description'].str.extract(r'([\w\.]+)\(.*?\) (.*?) \w+? (\d+\.\d+) per Share - (\w+) Tax')
+
+    return divi
 
 # @st.cache_data()
 def import_activity_statement(file: io.BytesIO) -> data.State:
@@ -237,6 +265,7 @@ def import_activity_statement(file: io.BytesIO) -> data.State:
     actions = import_corporate_actions(lines)
     open_positions = import_open_positions(lines, from_date, to_date)
     transfers = import_transfers(lines)
+    dividends = import_dividends(lines)
     transfers = pd.concat([transfers, generate_transfers_from_actions(actions)])
     trades = pd.concat([trades, transfers])
     # Fill in account info into trades so open positions can be computed and verified per account

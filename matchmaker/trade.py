@@ -23,6 +23,8 @@ def convert_trade_columns(df: pd.DataFrame) -> pd.DataFrame:
        df['Action'] = df['Code'].apply(lambda x: 'Open' if ('O' in x or 'Ca' in x) else 'Close' if 'C' in x else 'Unknown')
     if 'Code' in df.columns:
         df['Code'] = df['Code'].fillna('')
+    if 'Option Type' not in df.columns:
+        df['Option Type'] = ''
     # If action is not Transfer, then Type is Long if we're opening a position, Short if closing
     def get_type(row):
         if row['Quantity'] == 0:
