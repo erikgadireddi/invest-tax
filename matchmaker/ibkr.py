@@ -232,17 +232,35 @@ def import_dividends(lines: dict) -> pd.DataFrame:
     divi['Action'] = direct_payments[1].fillna(other_payments[1])
     divi['Ratio'] = pd.to_numeric(direct_payments[2], errors='coerce')
     divi['Suffix'] = direct_payments[3].fillna(other_payments[2])
-
+    divi.drop(columns=['Dividends', 'Header'], inplace=True)
+    divi = divi.groupby(['Date', 'Symbol']).agg({
+        'Amount': 'sum',
+        'Currency': 'first',
+        'Action': 'first',
+        'Ratio': 'first',
+        'Suffix': 'first'
+    }).reset_index()
     
     # Withholding Tax,Header,Currency,Date,Description,Amount,Code
     # Withholding Tax,Data,USD,2024-03-05,JNJ(US4781601046) Cash Dividend USD 1.19 per Share - US Tax,-3.57,
-    withhold = dataframe_from_prefixed_lines(lines, 'Withholding Taxes')
+    withhold = dataframe_from_prefixed_lines(lines, 'Withholding Tax')
     if withhold.empty:
         return divi
+    withhold = withhold[~pd.isna(withhold['Date'])]
     withhold['Date'] = pd.to_datetime(withhold['Date'], format='%Y-%m-%d')
     withhold['Amount'] = pd.to_numeric(withhold['Amount'], errors='coerce')
-    withhold[['Action', 'Symbol', 'Ratio', 'Country']] = withhold['Description'].str.extract(r'([\w\.]+)\(.*?\) (.*?) \w+? (\d+\.\d+) per Share - (\w+) Tax')
+    withhold[['Symbol', 'Action', 'Country']] = withhold['Description'].str.extract(r'([\w\.]+)\(.*?\) (.*?) - (\w+) Tax$')
+    withhold.drop(columns=['Withholding Tax', 'Header', 'Code'], inplace=True)
+    withhold = withhold.groupby(['Date', 'Symbol']).agg({
+        'Amount': 'sum',
+        'Country': 'first',
+        'Action': 'first',
+    }).reset_index()
+    withhold.rename(columns={'Amount': 'Tax'}, inplace=True)
 
+    # Merge both on description and date, taking only the Country and Amount from the withholding tax
+    merged = divi.merge(withhold[['Symbol', 'Date', 'Country', 'Tax']], on=['Symbol', 'Date'], how='left')
+    merged['Tax Percent'] = (merged['Tax'] / merged['Amount']).fillna(0) * 100
     return divi
 
 # @st.cache_data()
