@@ -226,10 +226,13 @@ def import_dividends(lines: dict) -> pd.DataFrame:
     divi = divi[~pd.isna(divi['Date'])]
     divi['Date'] = pd.to_datetime(divi['Date'], format='%Y-%m-%d')
     divi['Amount'] = pd.to_numeric(divi['Amount'], errors='coerce')
-    divi[['Symbol', 'Action', 'Ratio', 'Suffix']] = divi['Description'].str.extract(r'([\w\.]+)\(.*?\) (.+?) (\d+\.\d+) per Share (.*?)$')
-    mask = pd.isna(divi['Action'])
-    divi.loc[mask, ['Symbol', 'Action']] = divi.loc[mask, 'Description'].str.extract(r'([\w\.]+)\(.*?\) (.+?)$')
-    divi.drop(columns=['Dividends', 'Header', 'Description'], inplace=True)
+    direct_payments = divi['Description'].str.extract(r'([\w\.]+)\(.*?\) (.+?) (\d+\.\d+) per Share (.*?)$')
+    other_payments = divi['Description'].str.extract(r'([\w\.]+)\(.*?\) (.+?)( \(.+?\))?$')
+    divi['Symbol'] = direct_payments[0].fillna(other_payments[0])
+    divi['Action'] = direct_payments[1].fillna(other_payments[1])
+    divi['Ratio'] = pd.to_numeric(direct_payments[2], errors='coerce')
+    divi['Suffix'] = direct_payments[3].fillna(other_payments[2])
+
     
     # Withholding Tax,Header,Currency,Date,Description,Amount,Code
     # Withholding Tax,Data,USD,2024-03-05,JNJ(US4781601046) Cash Dividend USD 1.19 per Share - US Tax,-3.57,
