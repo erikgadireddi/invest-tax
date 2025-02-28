@@ -48,47 +48,53 @@ if state.trades is not None and not state.trades.empty:
             if held_position != 0:
                 st.markdown(f'**Držené pozice: :blue[{held_position:.0f}]**')
         st.caption(f'Realizovaný profit dle brokera: :green[{profit:,.0f}] {shown_trades["Currency"].iloc[0]}')
+
+    dividends = state.dividends[state.dividends['Ticker'] == symbol]
+    if not dividends.empty:
+        with st.expander(f'Celkový zisk z dividend: :green[{dividends["Amount"].sum():,.0f}] :grey[{dividends["Currency"].iloc[0]} ({dividends["Tax Percent"].abs().mean():.0f}% daň)]'):
+            table_descriptor = ux.dividends_table_descriptor()
+            st.dataframe(dividends, hide_index=True, column_config=table_descriptor['column_config'], column_order=table_descriptor['column_order'])
             
-        manual_trades = shown_trades[shown_trades['Manual'] == True]
-        if not manual_trades.empty:
-            st.caption('Manuálně přidané obchody, které můžete dále upravit:')
-            def edit_manual_trades():
-                st.session_state['changes_made'] = True
-            column_order = ('Display Name', 'Date/Time', 'Quantity', 'Currency', 'T. Price', 'Comm/Fee', 'Realized P/L', 'Account')
-            edited_trades = st.data_editor(manual_trades, hide_index=True, column_config=table_descriptor['column_config'], column_order=column_order, num_rows="fixed", disabled=("Display Name", "Currency"), on_change=edit_manual_trades)
+    manual_trades = shown_trades[shown_trades['Manual'] == True]
+    if not manual_trades.empty:
+        st.caption('Manuálně přidané obchody, které můžete dále upravit:')
+        def edit_manual_trades():
+            st.session_state['changes_made'] = True
+        column_order = ('Display Name', 'Date/Time', 'Quantity', 'Currency', 'T. Price', 'Comm/Fee', 'Realized P/L', 'Account')
+        edited_trades = st.data_editor(manual_trades, hide_index=True, column_config=table_descriptor['column_config'], column_order=column_order, num_rows="fixed", disabled=("Display Name", "Currency"), on_change=edit_manual_trades)
 
-            if st.session_state.get('changes_made', False):
-                if st.button("Přepočítat změny"):
-                    # Merge edited trades back into the main DataFrame
-                    edited_trades['Orig. Quantity'] = edited_trades['Quantity']
-                    edited_trades['Orig. T. Price'] = edited_trades['T. Price']
-                    edited_trades['Split Ratio'] = 1.0
-                    state.trades.update(edited_trades)
-                    trades_to_drop = edited_trades[edited_trades['Quantity'] == 0].index
-                    state.trades.drop(trades_to_drop, inplace=True)
-                    state.recompute_positions()
-                    state.save_session()
-                    st.session_state['changes_made'] = False
-                    st.rerun()
+        if st.session_state.get('changes_made', False):
+            if st.button("Přepočítat změny"):
+                # Merge edited trades back into the main DataFrame
+                edited_trades['Orig. Quantity'] = edited_trades['Quantity']
+                edited_trades['Orig. T. Price'] = edited_trades['T. Price']
+                edited_trades['Split Ratio'] = 1.0
+                state.trades.update(edited_trades)
+                trades_to_drop = edited_trades[edited_trades['Quantity'] == 0].index
+                state.trades.drop(trades_to_drop, inplace=True)
+                state.recompute_positions()
+                state.save_session()
+                st.session_state['changes_made'] = False
+                st.rerun()
 
-        suspicious_positions = trade.positions_with_missing_transactions(shown_trades)
+    suspicious_positions = trade.positions_with_missing_transactions(shown_trades)
 
-        if len(suspicious_positions) > 0:
-            st.error('Historie obsahuje long transakce vedoucí k negativním pozicím. Je možné, že nebyly nahrány všechny obchody či korporátní akce. Zkontrolujte, prosím, zdrojová data a případně doplňte chybějící transakce.')
-            table_descriptor = ux.transaction_table_descriptor_native()
-            st.dataframe(suspicious_positions, hide_index=True, column_config=table_descriptor['column_config'], column_order=table_descriptor['column_order'])
-            ux.add_trades_editor(state, suspicious_positions.iloc[0])
+    if len(suspicious_positions) > 0:
+        st.error('Historie obsahuje long transakce vedoucí k negativním pozicím. Je možné, že nebyly nahrány všechny obchody či korporátní akce. Zkontrolujte, prosím, zdrojová data a případně doplňte chybějící transakce.')
+        table_descriptor = ux.transaction_table_descriptor_native()
+        st.dataframe(suspicious_positions, hide_index=True, column_config=table_descriptor['column_config'], column_order=table_descriptor['column_order'])
+        ux.add_trades_editor(state, suspicious_positions.iloc[0])
 
-        mismatches = position.check_open_position_mismatches(shown_trades, state.positions, state.symbols)
-        mismatches = mismatches[mismatches['Ticker'] == symbol]
-        mismatches['Quantity'] = mismatches['Quantity'].fillna(0)
-        if not mismatches.empty:
-            st.caption('Toto jsou nalezené nesrovnalosti v otevřených pozicích, které mohou pomoci identifikovat data a množství chybějících obchodů.')
-            table_descriptor = ux.transaction_table_descriptor_native()
-            column_order = ('Date', 'Ticker', 'Account Accumulated Quantity', 'Quantity', 'Account', 'Date')
-            table_descriptor['column_config']['Account Accumulated Quantity'] = st.column_config.NumberColumn("Počet dle transakcí", help="Spočítaná pozice ze všech nahraných transakcí", format="%f")
-            table_descriptor['column_config']['Quantity'] = st.column_config.NumberColumn("Počet dle brokera", help="Pozice reportovaná brokerem v nahraném souboru", format="%f")
-            table_descriptor['column_config']['Account'] = st.column_config.TextColumn("Účet u brokera", help="Název účtu, ke kterému se transakce vztahují. Každý účet má své vlastní pozice.")
-            table_descriptor['column_config']['Date'] = st.column_config.DateColumn("Datum", help="Datum ke kterému broker spočítal pozice či byl proveden poslední obchod")
-            column_config = table_descriptor['column_config']
-            st.dataframe(mismatches, hide_index=True, column_order=column_order, column_config=column_config)
+    mismatches = position.check_open_position_mismatches(shown_trades, state.positions, state.symbols)
+    mismatches = mismatches[mismatches['Ticker'] == symbol]
+    mismatches['Quantity'] = mismatches['Quantity'].fillna(0)
+    if not mismatches.empty:
+        st.caption('Toto jsou nalezené nesrovnalosti v otevřených pozicích, které mohou pomoci identifikovat data a množství chybějících obchodů.')
+        table_descriptor = ux.transaction_table_descriptor_native()
+        column_order = ('Date', 'Ticker', 'Account Accumulated Quantity', 'Quantity', 'Account', 'Date')
+        table_descriptor['column_config']['Account Accumulated Quantity'] = st.column_config.NumberColumn("Počet dle transakcí", help="Spočítaná pozice ze všech nahraných transakcí", format="%f")
+        table_descriptor['column_config']['Quantity'] = st.column_config.NumberColumn("Počet dle brokera", help="Pozice reportovaná brokerem v nahraném souboru", format="%f")
+        table_descriptor['column_config']['Account'] = st.column_config.TextColumn("Účet u brokera", help="Název účtu, ke kterému se transakce vztahují. Každý účet má své vlastní pozice.")
+        table_descriptor['column_config']['Date'] = st.column_config.DateColumn("Datum", help="Datum ke kterému broker spočítal pozice či byl proveden poslední obchod")
+        column_config = table_descriptor['column_config']
+        st.dataframe(mismatches, hide_index=True, column_order=column_order, column_config=column_config)

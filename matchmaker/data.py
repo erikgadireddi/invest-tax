@@ -25,6 +25,8 @@ class State:
         self.actions = pd.DataFrame()
         """ Open positions snapshots parsed from the imported data, usually from the end of the imported intervals """
         self.positions = pd.DataFrame()
+        """ Dividends received in the imported data """
+        self.dividends = pd.DataFrame()
         """ Symbols appearing in the trades and positions, their currency and optionally their renamed name. Used to group together multiple symbols that refer to the same asset. Index: raw symbol present in statements """
         self.symbols = pd.DataFrame()
         """ Descriptor of the imported data noting the account names, imported date range and the number of trades. """
@@ -38,12 +40,13 @@ class State:
 
     def get_state(self):
         """ Used for streamlit caching. """
-        return (self.trades, self.actions, self.positions, self.symbols, self.imports) + self.pairings.get_state()
+        return (self.trades, self.actions, self.positions, self.dividends, self.symbols, self.imports) + self.pairings.get_state()
     
     def load_session(self):
         self.trades = st.session_state.trades if 'trades' in st.session_state else pd.DataFrame()
         self.actions = st.session_state.actions if 'actions' in st.session_state else pd.DataFrame()
         self.positions = st.session_state.positions if 'positions' in st.session_state else pd.DataFrame()
+        self.dividends = st.session_state.dividends if 'dividends' in st.session_state else pd.DataFrame()
         self.symbols = st.session_state.symbols if 'symbols' in st.session_state else pd.DataFrame()
         self.imports = st.session_state.imports if 'imports' in st.session_state else pd.DataFrame()
         self.pairings.load_session()
@@ -52,6 +55,7 @@ class State:
         st.session_state.update(trades=self.trades)
         st.session_state.update(actions=self.actions)
         st.session_state.update(positions=self.positions)
+        st.session_state.update(dividends=self.dividends)
         st.session_state.update(symbols=self.symbols)
         st.session_state.update(imports=self.imports)
         self.pairings.save_session()
@@ -64,7 +68,7 @@ class State:
         if added_trades is not None:
             new_symbols = pd.DataFrame(added_trades['Symbol'].unique(), columns=['Symbol'])
         else:
-            all_symbols = pd.concat([self.trades['Symbol'], self.positions['Symbol']]).unique()
+            all_symbols = pd.concat([self.trades['Symbol'], self.positions['Symbol'], self.dividends['Symbol']]).unique()
             new_symbols = pd.DataFrame(all_symbols, columns=['Symbol'])
             added_trades = self.trades
 
@@ -86,7 +90,7 @@ class State:
             self.positions = trade.add_split_data(self.positions, self.actions)
             self.positions['Display Name'] = self.positions['Ticker']
             self.positions.drop(columns=['Ticker'], inplace=True)
-            
+            self.dividends['Display Name'] = self.dividends['Ticker']
             self.trades['Display Name'] = self.trades['Ticker'] + self.trades['Display Suffix'].fillna('')
 
     def merge_trades(self, other: 'State', drop_pairings = True) -> int:
@@ -100,6 +104,8 @@ class State:
         self.positions.reset_index(drop=True, inplace=True)
         before = len(self.trades)
         self.trades = trade.merge_trades(other.trades, self.trades)
+        self.dividends = pd.concat([self.dividends, other.dividends])
+        self.dividends.drop_duplicates(inplace=True)
         imported_count = len(self.trades) - before
         if imported_count > 0 and drop_pairings:
             self.pairings.invalidate_pairs(other.trades['Date/Time'].min())
@@ -138,6 +144,7 @@ class State:
         imported_trades = rename_symbols(self.trades[self.trades['Manual'] == False].reset_index().rename(columns={'index': 'Hash'}), 'Date/Time').set_index('Hash')
         self.trades = pd.concat([imported_trades, manual_trades])
         self.positions = rename_symbols(self.positions, 'Date')
+        self.dividends = rename_symbols(self.dividends, 'Date')
 
     def detect_and_apply_renames(self):
         """ 
