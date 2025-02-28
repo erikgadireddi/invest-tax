@@ -25,7 +25,7 @@ def transaction_table_descriptor_czk():
                         }
        }
    
-def transaction_table_descriptor_native():
+def transaction_table_descriptor_native() -> dict:
    return {
        'column_order' : ('Display Name', 'Date/Time', 'Quantity', 'Currency', 'T. Price', 'Comm/Fee', 'Realized P/L', 'Accumulated Quantity', 'Action', 'Type'),
        'column_config' : {
@@ -44,7 +44,21 @@ def transaction_table_descriptor_native():
                         }
        }
 
-   
+def dividends_table_descriptor() -> dict:
+    return {
+        'column_order' : ('Date', 'Ticker', 'Amount', 'Currency', 'Country', 'Tax', 'Tax Percent'),
+        'column_config' : {
+            'Date': st.column_config.DatetimeColumn("Datum", help="Datum, kdy byla dividenda vyplacena"),
+            'Ticker': st.column_config.TextColumn("Symbol", help="Symbol instrumentu, který dividendy vyplácel"),
+            'Amount': st.column_config.NumberColumn("Částka", help="Částka dividend v měně vyplácení", format="%.2f"),
+            'Currency': st.column_config.TextColumn("Měna", help="Měna, ve které byly dividendy vyplaceny"),
+            'Country': st.column_config.TextColumn("Země", help="Země, kde byly dividendy vyplaceny"),
+            'Tax': st.column_config.NumberColumn("Zdanění", help="Částka daně z dividend", format="%.2f"),
+            'Tax Percent': st.column_config.NumberColumn("Daň [%]", help="Procentuální zdanění dividend", format="%.2f")
+        }
+    }
+
+
 def add_trades_editor(state : data.State, selected_trade, key=None, callback=None, symbols=None, target_accounts=None):
     key = key if key is not None else 'add_trade_form'
     with st.form(key=key):

@@ -68,7 +68,7 @@ class State:
         if added_trades is not None:
             new_symbols = pd.DataFrame(added_trades['Symbol'].unique(), columns=['Symbol'])
         else:
-            all_symbols = pd.concat([self.trades['Symbol'], self.positions['Symbol']]).unique()
+            all_symbols = pd.concat([self.trades['Symbol'], self.positions['Symbol'], self.dividends['Symbol']]).unique()
             new_symbols = pd.DataFrame(all_symbols, columns=['Symbol'])
             added_trades = self.trades
 
@@ -90,7 +90,7 @@ class State:
             self.positions = trade.add_split_data(self.positions, self.actions)
             self.positions['Display Name'] = self.positions['Ticker']
             self.positions.drop(columns=['Ticker'], inplace=True)
-            
+            self.dividends['Display Name'] = self.dividends['Ticker']
             self.trades['Display Name'] = self.trades['Ticker'] + self.trades['Display Suffix'].fillna('')
 
     def merge_trades(self, other: 'State', drop_pairings = True) -> int:
@@ -104,6 +104,8 @@ class State:
         self.positions.reset_index(drop=True, inplace=True)
         before = len(self.trades)
         self.trades = trade.merge_trades(other.trades, self.trades)
+        self.dividends = pd.concat([self.dividends, other.dividends])
+        self.dividends.drop_duplicates(inplace=True)
         imported_count = len(self.trades) - before
         if imported_count > 0 and drop_pairings:
             self.pairings.invalidate_pairs(other.trades['Date/Time'].min())
@@ -142,6 +144,7 @@ class State:
         imported_trades = rename_symbols(self.trades[self.trades['Manual'] == False].reset_index().rename(columns={'index': 'Hash'}), 'Date/Time').set_index('Hash')
         self.trades = pd.concat([imported_trades, manual_trades])
         self.positions = rename_symbols(self.positions, 'Date')
+        self.dividends = rename_symbols(self.dividends, 'Date')
 
     def detect_and_apply_renames(self):
         """ 

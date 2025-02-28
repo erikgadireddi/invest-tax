@@ -261,7 +261,7 @@ def import_dividends(lines: dict) -> pd.DataFrame:
     # Merge both on description and date, taking only the Country and Amount from the withholding tax
     merged = divi.merge(withhold[['Symbol', 'Date', 'Country', 'Tax']], on=['Symbol', 'Date'], how='left')
     merged['Tax Percent'] = (merged['Tax'] / merged['Amount']).fillna(0) * 100
-    return divi
+    return merged
 
 # @st.cache_data()
 def import_activity_statement(file: io.BytesIO) -> data.State:
@@ -314,4 +314,5 @@ def import_activity_statement(file: io.BytesIO) -> data.State:
     state.actions = actions
     state.imports = imported
     state.positions = open_positions
+    state.dividends = dividends
     return state
