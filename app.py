@@ -18,7 +18,3 @@ st.caption('Pro Vaše bezpečí Taxlite :blue[neukládá žádné informace] o V
             'Celý interní stav aplikace si můžete kdykoliv stáhnout tlačítkem :red[Stáhnout vše v CSV] a uchovat na svém počítači, jelikož po zavření stránky nebo smazání session bude interní stav ztracen.\n')
 st.caption('Kód aplikace je open-source a můžete si tato tvrzení kdykoliv ověřit kliknutím na odkaz na GitHub v záhlaví aplikace. Také si můžete stáhnout celý kód a spustit si Taxlite na svém počítači.\n')
 st.page_link("pages/1_import_trades.py", label="📥 Nyní hurá na import obchodů")
-st.divider()
-st.caption('Chybí:')
-st.caption('* neimportují se dividendy')
-st.caption('* neimportují se korporátní akce')

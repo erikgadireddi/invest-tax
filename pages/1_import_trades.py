@@ -160,10 +160,6 @@ def main():
     
     col1, spacer, col2 = st.columns([0.3, 0.3, 0.2])
     # Serve merged trades as CSV    
-    with col1:
-        if (len(state.trades) > 0):
-            trades_csv = snapshot.save_snapshot(state).encode('utf-8')
-            st.download_button('📩 Stáhnout vše v CSV', trades_csv, 'merged_trades.csv', 'text/csv', use_container_width=True, help='Stažením dostanete celý stav výpočtu pro další použití. Stačí příště přetáhnout do importu pro pokračování.')
     # Clear uploaded files
     with col2:
         def clear_uploads():
