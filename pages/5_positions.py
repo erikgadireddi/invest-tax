@@ -87,7 +87,7 @@ if state.trades is not None and not state.trades.empty:
                 if row['Apply']:
                     state.symbols.loc[row['Symbol'], 'Ticker'] = row['Ticker']
                     state.symbols.loc[row['Symbol'], 'Change Date'] = row['Change Date']
-            st.success("Změny byly úspěšně aplikovány.")
+            st.success("Aplikuji změny, prosím o strpení.")
             st.session_state['rename_changes_made'] = False
             state.recompute_positions()
             state.save_session()

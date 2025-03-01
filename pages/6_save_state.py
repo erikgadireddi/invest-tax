@@ -21,8 +21,8 @@ else:
     trades_csv = snapshot.save_snapshot(state).encode('utf-8')
     st.download_button('📩 Stáhnout vše v CSV', trades_csv, 'taxlite_state.csv', 'text/csv', use_container_width=True, help='Stažením dostanete celý stav výpočtu pro další použití. Stačí příště přetáhnout do importu pro pokračování.')
     st.markdown("""
-    Taxlite neukládá žádná Vaše data na server, ani Vás nežádá o vytvoření účtu. Ochrana Vašeho soukromí je na prvním místě. Jelikož data
-    zůstávají pouze ve Vašem prohlížeči, je důležité si je pravidelně ukládat, abyste nepřišli o rozpracované obchody.
+    Taxlite *neukládá žádná Vaše data na server*, ani Vás nežádá o vytvoření účtu. Ochrana Vašeho soukromí je na prvním místě. Jelikož data
+    zůstávají pouze ve Vašem prohlížeči (a to dočasně v aktivní session), je důležité si je pravidelně ukládat, abyste nepřišli o rozpracované obchody.
     
     ### Jak omylem nepřijít o data
     1. **Neobnovujte manuálně stránku** v prohlížeči, jelikož to vymaže veškerý rozpracovaný stav.

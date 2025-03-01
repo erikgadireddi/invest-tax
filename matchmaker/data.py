@@ -122,6 +122,12 @@ class State:
         self.pairings.invalidate_pairs(new_trades['Date/Time'].min())
         self.recompute_positions()
 
+    def normalize_trades(self):
+        """ Ensure that all trades have the same columns and data types. """
+        if 'Manual' not in self.symbols.columns:
+            self.symbols['Manual'] = False
+        self.symbols['Manual'].fillna(False, inplace=True)
+
     def apply_renames(self):
         """ Apply symbol renames by looking them up in the symbols table . """
         def rename_symbols(df: pd.DataFrame, date_column: str) -> pd.DataFrame:
