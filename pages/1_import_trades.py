@@ -10,17 +10,6 @@ import matchmaker.ibkr as ibkr
 import matchmaker.imports as imports
 from menu import menu
 
-def import_trade_file(file):
-    try:
-        if snapshot.is_snapshot(file):
-            return snapshot.load_snapshot(file)
-        else:
-            return ibkr.import_activity_statement(file)
-    except Exception as e:
-        st.error(f'Error importing trades. File {file.name} does not contain the expected format. Error: {e}')
-        return pd.DataFrame()
-    
-
 def main():
     st.set_page_config(page_title='Krutopřísný tradematcher', layout='centered')
     menu()
@@ -84,9 +73,9 @@ def main():
     if uploaded_files:
         for uploaded_file in uploaded_files:
             import_state.write('Importuji transakce...')
-            imported = import_trade_file(uploaded_file)
+            imported = imports.import_trade_file(uploaded_file)
             import_state.write(f'Slučuji :blue[{len(imported.trades)}] obchodů...')
-            loaded_count += state.merge_trades(imported, loaded_count > 0)
+            loaded_count += state.merge_with(imported, loaded_count > 0)
             import_message = f'Importováno :green[{len(state.trades) - trades_count}] obchodů.'
             import_state.write(import_message)
         state.actions.drop_duplicates(inplace=True)

@@ -1,5 +1,8 @@
 import pandas as pd
-import numpy as np
+import streamlit as st
+import matchmaker.ibkr as ibkr
+import matchmaker.snapshot as snapshot
+import matchmaker.data as data
 
 def convert_import_history_columns(df: pd.DataFrame) -> pd.DataFrame:
     """
@@ -31,3 +34,18 @@ def merge_import_intervals(imports: pd.DataFrame) -> pd.DataFrame:
 
     imports = pd.DataFrame(merged_imports)
     return imports
+
+
+def import_trade_file(file) -> data.State:
+    try:
+        if snapshot.is_snapshot(file):
+            imported = snapshot.load_snapshot(file)
+        else:
+            imported = ibkr.import_activity_statement(file)
+    except Exception as e:
+        st.error(f'Error importing trades. File {file.name} does not contain the expected format. Error: {e}')
+        return data.State()
+    
+    imported.normalize_tables()
+    return imported
+    

@@ -26,11 +26,11 @@ class State:
         """ Open positions snapshots parsed from the imported data, usually from the end of the imported intervals """
         self.positions = pd.DataFrame()
         """ Dividends received in the imported data """
-        self.dividends = pd.DataFrame()
+        self.dividends = pd.DataFrame(columns=['Symbol', 'Date', 'Amount', 'Currency', 'Action', 'Ratio', 'Country', 'Tax', 'Tax Percent', 'Display Name'])
         """ Symbols appearing in the trades and positions, their currency and optionally their renamed name. Used to group together multiple symbols that refer to the same asset. Index: raw symbol present in statements """
-        self.symbols = pd.DataFrame()
+        self.symbols = pd.DataFrame(columns=['Symbol', 'Ticker', 'Change Date', 'Currency', 'Manual']).set_index('Symbol')
         """ Descriptor of the imported data noting the account names, imported date range and the number of trades. """
-        self.imports = pd.DataFrame()
+        self.imports = pd.DataFrame(columns=['Account', 'From', 'To', 'Trade Count'])
         """ Trades that were paired together to form taxable pairs. """
         self.pairings = pairing.Pairings()
 
@@ -93,7 +93,7 @@ class State:
             self.dividends['Display Name'] = self.dividends['Ticker']
             self.trades['Display Name'] = self.trades['Ticker'] + self.trades['Display Suffix'].fillna('')
 
-    def merge_trades(self, other: 'State', drop_pairings = True) -> int:
+    def merge_with(self, other: 'State', drop_pairings = True) -> int:
         """ Merge another state into this one, returning the number of new trades. """
         self.imports = pd.concat([self.imports, other.imports]).drop_duplicates()
         if len(other.actions) > 0:
@@ -106,6 +106,7 @@ class State:
         self.trades = trade.merge_trades(other.trades, self.trades)
         self.dividends = pd.concat([self.dividends, other.dividends])
         self.dividends.drop_duplicates(inplace=True)
+        self.symbols = pd.concat([self.symbols, other.symbols])
         imported_count = len(self.trades) - before
         if imported_count > 0 and drop_pairings:
             self.pairings.invalidate_pairs(other.trades['Date/Time'].min())
@@ -122,11 +123,11 @@ class State:
         self.pairings.invalidate_pairs(new_trades['Date/Time'].min())
         self.recompute_positions()
 
-    def normalize_trades(self):
+    def normalize_tables(self):
         """ Ensure that all trades have the same columns and data types. """
-        if 'Manual' not in self.symbols.columns:
-            self.symbols['Manual'] = False
-        self.symbols['Manual'].fillna(False, inplace=True)
+        # TODO: fill in missing columns with default values
+        pass
+
 
     def apply_renames(self):
         """ Apply symbol renames by looking them up in the symbols table . """
@@ -162,16 +163,17 @@ class State:
         renames = pd.read_csv(renames_table, parse_dates=['Change Date'])
         renames.rename(columns={'New': 'Ticker', 'Old': 'Symbol'}, inplace=True)
         renames.drop(columns=['New Company Name'], inplace=True)
+        renames['Manual'] = False
         renames.set_index('Symbol', inplace=True)
 
         # Apply the renames to the symbols table
-        kept_symbols = self.symbols[self.symbols['Change Date'].isna()]
-        assert all(kept_symbols['Ticker'] == kept_symbols.index), "We should have just automatically generated symbols here."
+        kept_symbols = self.symbols[(self.symbols['Change Date'].isna()) | (self.symbols['Manual'] == True)]
+        currency_lookup = kept_symbols.groupby('Symbol')['Currency'].first()
         active_renames = renames[renames.index.isin(self.symbols.index)]
-        active_renames['Currency'] = active_renames.index.map(lambda symbol: kept_symbols.loc[symbol]['Currency'])
+        active_renames['Currency'] = active_renames.index.map(lambda symbol: currency_lookup[symbol])
+        active_renames = active_renames[['Ticker', 'Change Date', 'Currency', 'Manual']]
         self.symbols = pd.concat([kept_symbols, active_renames]).drop_duplicates().sort_values(by=['Change Date', 'Symbol'], na_position='last')
         # TODO: The currency doesn't need to be the same in case it was another company that took over the symbol. We'll need to get it from the trades table later. 
-
 
         # Now we can adjust the trades for the renames
         if len(renames) > 0:
