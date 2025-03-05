@@ -193,17 +193,18 @@ def generate_transfers_from_actions(actions: pd.DataFrame) -> pd.DataFrame:
     spinoffs = actions[(actions['Action'] == 'Spinoff') | (actions['Action'] == 'Acquisition')]
     transfers = pd.DataFrame()
     for index, spinoff in spinoffs.iterrows():
+        proceeds = spinoff['Proceeds'] if (spinoff['Action'] != 'Acquisition') | (spinoff['Proceeds'] != 0) else -spinoff['Value']
         transfer = {
             'Date/Time': spinoff['Date/Time'] - pd.Timedelta(seconds=1),
             'Currency': spinoff['Currency'],
             'Symbol': spinoff['Symbol'],
             'Quantity': spinoff['Quantity'],
-            'Proceeds': spinoff['Proceeds'],
+            'Proceeds': proceeds,
             'Comm/Fee': 0,
             'Basis': 0,
             'Realized P/L': spinoff['Realized P/L'],
             'MTM P/L': 0,
-            'T. Price': spinoff['Proceeds'] / abs(spinoff['Quantity'])  if spinoff['Quantity'] != 0 else 0,
+            'T. Price': abs(proceeds / spinoff['Quantity'] if spinoff['Quantity'] != 0 else 0),
             'C. Price': 0,
             'Action': 'Open' if spinoff['Quantity'] >= 0 else 'Close',
             'Type': spinoff['Action'],
