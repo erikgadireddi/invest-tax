@@ -20,7 +20,17 @@ def convert_trade_columns(df: pd.DataFrame) -> pd.DataFrame:
     if 'Manual' not in df.columns:
         df['Manual'] = False
     if 'Action' not in df.columns and 'Code' in df.columns:
-       df['Action'] = df['Code'].apply(lambda x: 'Open' if ('O' in x or 'Ca' in x) else 'Close' if 'C' in x else 'Unknown')
+        def determine_action(code):
+            actions = code.split(';')
+            if 'O' in actions or 'Ca' in actions:
+                if 'C' in actions:
+                    return 'Close/Open'
+                return 'Open'
+            elif 'C' in actions:
+                return 'Close'
+            else:
+                return 'Unknown'
+        df['Action'] = df['Code'].apply(determine_action)
     if 'Code' in df.columns:
         df['Code'] = df['Code'].fillna('')
     if 'Option Type' not in df.columns:
@@ -101,7 +111,6 @@ def add_split_data(target: pd.DataFrame, split_actions: pd.DataFrame) -> pd.Data
 
     return target
 
-@st.cache_data()
 def compute_accumulated_positions(trades: pd.DataFrame) -> pd.DataFrame:
     """ Compute accumulated positions for each symbol by simulating all trades. Transfers are now excluded from the computation. """
     # trades = trades[trades['Action'] != 'Transfer']
@@ -109,7 +118,53 @@ def compute_accumulated_positions(trades: pd.DataFrame) -> pd.DataFrame:
     trades['Accumulated Quantity'] = trades.groupby(['Ticker', 'Display Suffix'])['Quantity'].cumsum().astype(np.float64)
     # Now also compute accumulated quantity per account
     trades['Account Accumulated Quantity'] = trades.groupby(['Account', 'Ticker', 'Display Suffix'])['Quantity'].cumsum().astype(np.float64)
+    return _split_open_close_transactions(trades)
+
+def _split_open_close_transactions(trades: pd.DataFrame) -> pd.DataFrame:
+    """ Splits any transactions that are both opening and closing a position into two. This is needed for tax optimization as it's actually transitioning between short and long positions. """
+    close_open = trades[(trades['Action'] == 'Close/Open') & (trades['Quantity'] != 0)]
+    close_open = close_open[close_open['Accumulated Quantity'] < close_open['Quantity']] # Filter out transactions that are not transitioning between long and short
+    if close_open.empty:
+        return trades
+    split_trades = pd.DataFrame()
+    for index, row in close_open.iterrows():
+        # Split each transaction into two at the point of zero accumulated quantity. The previous accumulated quantity should be negative.
+        closing_row, opening_row = _split_transaction_at_quantity(row, row['Accumulated Quantity'])
+        df = pd.DataFrame([closing_row, opening_row])
+        split_trades = pd.concat([split_trades, df])
+    trades = trades.drop(close_open.index)
+    split_trades.set_index('Hash', inplace=True)
+    trades = pd.concat([trades, split_trades])
     return trades
+
+def _split_transaction_at_quantity(transaction: pd.Series, quantity: float) -> tuple[pd.Series, pd.Series]:
+    """ Split a transaction into two at the given quantity. """
+    assert (transaction['Quantity'] > 0 and 0 <= quantity <= transaction['Quantity']) or (transaction['Quantity'] < 0 and transaction['Quantity'] <= quantity <= 0, "Quantity needs to be within the transaction bounds.")
+    prev_accumulated_quantity = transaction['Accumulated Quantity'] - transaction['Quantity']
+    closing_row = transaction.copy()
+    opening_row = transaction.copy()
+    closing_row['Quantity'] = quantity
+    opening_row['Quantity'] = opening_row['Quantity'] - quantity
+    closing_row['Accumulated Quantity'] = prev_accumulated_quantity + quantity
+    closing_row['Account Accumulated Quantity'] = transaction['Account Accumulated Quantity'] - transaction['Quantity'] + quantity
+    closing_row['Action'] = 'Close' if closing_row['Quantity'] + prev_accumulated_quantity <= 0 else 'Open'
+    opening_row['Action'] = 'Close' if transaction['Accumulated Quantity'] <= 0 else 'Open'
+    closing_row['Type'] = 'Short' if (closing_row['Action'] == 'Close' and closing_row['Quantity'] > 0) or (closing_row['Action'] == 'Open' and closing_row['Quantity'] < 0) else 'Long'
+    opening_row['Type'] = 'Short' if (opening_row['Action'] == 'Close' and opening_row['Quantity'] > 0) or (opening_row['Action'] == 'Open' and opening_row['Quantity'] < 0) else 'Long'
+    fraction = quantity / transaction['Quantity']
+    closing_row['Proceeds'] = fraction * transaction['Proceeds']
+    opening_row['Proceeds'] = (1 - fraction) * transaction['Proceeds']
+    closing_row['Comm/Fee'] = fraction * transaction['Comm/Fee']
+    opening_row['Comm/Fee'] = (1 - fraction) * transaction['Comm/Fee']
+    closing_row['Basis'] = fraction * transaction['Basis']
+    opening_row['Basis'] = (1 - fraction) * transaction['Basis']
+    closing_row['Realized P/L'] = fraction * transaction['Realized P/L']
+    opening_row['Realized P/L'] = (1 - fraction) * transaction['Realized P/L']
+    closing_row['MTM P/L'] = fraction * transaction['MTM P/L']
+    opening_row['MTM P/L'] = (1 - fraction) * transaction['MTM P/L']
+    closing_row['Hash'] = hash.hash_row(closing_row)
+    opening_row['Hash'] = hash.hash_row(opening_row)
+    return closing_row, opening_row
 
 def positions_with_missing_transactions(trades: pd.DataFrame) -> pd.DataFrame:
     """ 
@@ -148,7 +203,7 @@ def transfers_with_missing_transactions(trades: pd.DataFrame) -> tuple[pd.DataFr
         unmatched_incoming = unmatched_incoming[unmatched_incoming > 0]
         return unmatched_incoming, unmatched_outgoing
     
-    return pd.DataFrame()
+    return pd.DataFrame(), pd.DataFrame()
 
 # Adjust quantities and trade prices for splits
 def adjust_for_splits(trades: pd.DataFrame, split_actions: pd.DataFrame) -> pd.DataFrame:
